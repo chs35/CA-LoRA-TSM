@@ -1,0 +1,5 @@
+Vendored copy of calora (Improving-CA-LoRA reimplementation of CA-LoRA).
+Source: /workspace/Optimizing-CA-LoRA/src/calora (github.com/chs35/Optimizing-CA-LoRA)
+Commit: 500c9ecc0f5202ae50cc3a0cf4768560c07e1efb
+Copied: 2026-09-14T03:56:27Z
+Do not edit; all CA-LoRA-TSM code lives in src/catsm.

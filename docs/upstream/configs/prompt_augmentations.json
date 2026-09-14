@@ -1,0 +1,51 @@
+{
+  "version": 3,
+  "note": [
+    "c_Aug sets for the two concept axes CA-LoRA contrasts.",
+    "v3 replaces both axes with the paper's own sets, quoted verbatim from",
+    "arXiv 2503.22172 Appendix B.2. The v1/v2 sets were our own reconstruction,",
+    "written before the appendix was checked; reproduction fidelity wins over a",
+    "set we designed ourselves (user decision, 2026-07-28).",
+    "IMPORTANT — these templates carry no {caption} placeholder. The paper's c_Aug",
+    "is a rewrite of the *fixed* training prompt ('photorealistic first-person",
+    "urban street view'), not a suffix appended to a per-image caption, so the",
+    "whole prompt is replaced. This couples the augmentation file to",
+    "data.caption_template: with a per-city caption the c_Aug would no longer be a",
+    "minimal edit of c and L_Concept would measure the caption difference too.",
+    "configs/sdxl_cityscapes.yaml therefore pins the fixed prompt (Table 12).",
+    "ConceptAxis.render still calls str.format(caption=...), which is a no-op on a",
+    "template without placeholders — the code path is unchanged.",
+    "Known caveat, to be settled by measurement rather than by argument: the",
+    "'eye-level view' viewpoint template agrees with Cityscapes, which is entirely",
+    "first-person, so it pulls the condition towards the real images and can cancel",
+    "against the other slots in the within-axis mean E[ghat_viewpoint]. The paper is",
+    "immune because it only ever uses CA, a norm; our direction metrics are not.",
+    "direction_concentration (||E[ghat]|| / CA, free from values already stored) is",
+    "the check: if the viewpoint axis reports a concentration near the 1/sqrt(n)",
+    "random-direction floor on the A100 measurement, cos_of_means for that axis is a",
+    "cosine between two cancelled-out vectors and must be read with that in mind.",
+    "augs_per_sample=4 still draws without replacement from the 5 templates."
+  ],
+  "axes": {
+    "style": {
+      "description": "Rendering style of the scene, holding the viewpoint fixed (paper Appendix B.2).",
+      "templates": [
+        "Sketch of first-person urban street view",
+        "Watercolor of first-person urban street view",
+        "Pop-art of first-person urban street view",
+        "Lineart of first-person urban street view",
+        "Oil painting of first-person urban street view"
+      ]
+    },
+    "viewpoint": {
+      "description": "Camera pose, holding the photorealistic appearance fixed (paper Appendix B.2).",
+      "templates": [
+        "Photorealistic urban street in top-down view",
+        "Photorealistic urban street in high angle view",
+        "Photorealistic urban street in low angle view",
+        "Photorealistic urban street in eye-level view",
+        "Photorealistic urban street in close-up view"
+      ]
+    }
+  }
+}

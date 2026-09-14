@@ -1,0 +1,18 @@
+# The timestep sweep that replaces the paper's 4-candidate heuristic.
+#
+# 13 timesteps spanning the schedule, including all four of the paper's
+# candidates (1, 81, 201, 481) so the comparison is apples-to-apples. One CA
+# measurement is far cheaper than one LoRA run, so a dense grid is affordable.
+_base_: sdxl_cityscapes.yaml
+
+name: tsweep_sdxl
+
+measure:
+  timesteps: [1, 41, 81, 121, 201, 301, 401, 481, 601, 701, 801, 901, 981]
+  num_samples: 256
+  paired_across_timesteps: true   # same draws at every t, so t-differences are real
+
+select:
+  # Pre-registered default; the trained multi-t selection overrode this to 3
+  # at selection time (disclosed change, report Section 5.2 / Table 1 row 5).
+  top_timesteps: 5

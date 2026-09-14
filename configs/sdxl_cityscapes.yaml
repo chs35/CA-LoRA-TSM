@@ -1,0 +1,115 @@
+# SDXL + Cityscapes on a single A100 (draft §3, §7).
+#
+# CA measurement, selection ratio (2%), rank (64), data and the training prompt
+# follow CA-LoRA via the Improving-CA-LoRA reimplementation (vendored calora).
+# Fostering trains every expert for 4K steps on its own timestep interval; the
+# n=1 expert is the same-step internal baseline (draft §5.1 No.1), not the
+# paper's 10K number.
+name: sdxl_cityscapes
+output_dir: runs
+
+model:
+  kind: sdxl
+  name: stabilityai/stable-diffusion-xl-base-1.0
+  dtype: float32
+  vae_dtype: float32
+  device: auto
+  resolution: 1024
+  enable_gradient_checkpointing: true
+
+data:
+  kind: cityscapes
+  root: "/workspace/data/cityscapes"
+  split: train
+  caption_mode: template
+  caption_template: "photorealistic first-person urban street view"
+  concept_axes: [style, viewpoint]
+  augmentation_file: configs/prompt_augmentations.json
+  crop: random
+  hflip: true
+
+measure:
+  # Draft §4: 10-point skeleton first; add 61, 625, 875 where the block
+  # structure is unclear. All points are also what interval_select.mode=aggregate
+  # pools per interval.
+  timesteps: [1, 41, 61, 81, 125, 201, 250, 375, 500, 750, 999]
+  num_samples: 256
+  batch_size: 1
+  augs_per_sample: 4
+  split_half: true
+  granularity: matrix
+  accumulate_direction: true
+  compute_paired_cosine: true
+  save_direction_vectors: false
+  accum_device: auto
+  seed: 0
+  paired_across_timesteps: true
+  log_every: 16
+
+select:
+  granularity: head
+  fraction: 0.02
+  budget_basis: auto       # -> unit_count at head granularity (208 of 10,400 heads)
+  axis: style
+  normalization: sum
+  aggregation: normalized_mean
+
+# Draft §3.3: halve from the top. Boundaries are raw t; the log-SNR of every
+# boundary is recorded next to the selections so the definition can be carried
+# to another backbone. Override a scheme's interior starts here once the §4
+# diagnosis has fixed the boundaries, e.g. `n4: [125, 250, 500]`.
+intervals:
+  schemes: [1, 3, 4, 5]
+  boundaries: {}
+
+interval_select:
+  mode: aggregate          # (B) pool every measured t inside the interval; (A) = representative
+  representative:          # used only when mode: representative — one t per interval, lowest first
+    n1: [81]
+    n3: [81, 375, 750]
+    n4: [81, 201, 375, 750]
+    n5: [41, 81, 201, 375, 750]
+  fixed_timestep: 81       # mode: fixed = control C1 (every interval selects at t=81)
+
+train:                     # fostering: per expert, draft §7
+  lora:
+    rank: 64
+    alpha: 64
+    dropout: 0.0
+    init_lora_weights: gaussian
+  max_steps: 4000
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  learning_rate: 1.0e-4
+  lr_scheduler: constant
+  lr_warmup_steps: 0
+  max_grad_norm: 1.0
+  mixed_precision: "no"
+  seed: 0
+  checkpoint_every: 1000
+  log_every: 50
+  stability_every: 0       # CA drift is out of scope (draft §1)
+
+assemble:                  # router training, experts frozen (draft §3.2 step 4)
+  sets: [n1, n4]
+  core: n4
+  max_steps: 1000
+  batch_size: 1
+  learning_rate: 1.0e-3
+  init_gate: 1.0           # raw router output; start from the plain sum of active experts
+  seed: 0
+  log_every: 50
+
+eval:
+  num_images: 500
+  guidance_scale: 5.0
+  num_inference_steps: 25
+  prompt: "photorealistic first-person urban street view"
+  include_class_names: true
+  weather_conditions: [foggy, night-time, rainy, snowy]
+  images_per_condition: 100
+  reference_split: val
+  reference_num_images: 500
+  clip_model: openai/clip-vit-large-patch14
+  generation_batch_size: 4
+  seed: 0

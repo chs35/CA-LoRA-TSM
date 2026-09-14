@@ -1,0 +1,42 @@
+# First thing to run on the A100: exercises the real SDXL code path at a size
+# that finishes in minutes, so shape/dtype/memory bugs surface before a long run.
+#
+# Cityscapes is NOT required here. The point of this config is to validate the
+# SDXL path — 1024px latents, dual text encoders, LoRA injection, accumulator
+# footprint — so it overrides the inherited data.kind with synthetic images and
+# needs no data.root and no download. It says nothing about results; those come
+# from sdxl_cityscapes.yaml once the dataset request is approved.
+_base_: sdxl_cityscapes.yaml
+
+name: smoke_a100
+
+data:
+  kind: dummy             # <-- the override that makes this runnable today
+  num_dummy_items: 16     # DummyConceptDataset synthesises at model.resolution
+  max_items: 16
+
+measure:
+  timesteps: [81]
+  num_samples: 8
+  augs_per_sample: 2      # cheaper than the base config's 4, still the m>1 path
+  split_half: true
+  log_every: 2
+
+train:
+  max_steps: 20
+  gradient_accumulation_steps: 1
+  checkpoint_every: 0
+  log_every: 5
+  stability_every: 10
+  stability_num_samples: 4
+
+# Just enough generation to prove the SDXL sampling path and the CLIP embedder
+# work at 1024px before a real arm is evaluated.
+eval:
+  num_images: 8
+  num_inference_steps: 8
+  weather_conditions: [foggy]
+  images_per_condition: 4
+  reference_split: train      # dummy data here, so the split name is inert
+  reference_num_images: 8
+  generation_batch_size: 2

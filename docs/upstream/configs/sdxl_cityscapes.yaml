@@ -1,0 +1,120 @@
+# Paper reproduction: SDXL + Cityscapes on a single A100.
+#
+# Before running, set data.root to the directory containing leftImg8bit/ and
+# gtFine/ (see src/calora/data/cityscapes.py for the download instructions).
+#
+# Hyperparameters taken from the paper: LoRA rank 64, 10k steps, top-2% of the
+# attention parameters, timestep candidates {1, 81, 201, 481} with t=81 chosen.
+# Appendix A / Table 12 additionally fix the ones the main text omits: batch size
+# 1, learning rate 1e-4, the fixed training prompt "photorealistic first-person
+# urban street view [with class names]", 1024px, and random crop + random
+# horizontal flip as the data augmentation. Gradient accumulation is not
+# mentioned, so it stays at 1 rather than being inflated to a larger effective
+# batch the paper never used. Still not stated anywhere: the CMMD reference set
+# and the CLIP backbone — see EvalConfig, where both are marked as our decision.
+name: sdxl_cityscapes
+output_dir: runs
+
+model:
+  kind: sdxl
+  name: stabilityai/stable-diffusion-xl-base-1.0
+  dtype: float32          # fp32 gradients; use bfloat16 if memory is tight
+  vae_dtype: float32      # the SDXL VAE produces NaNs in fp16
+  device: auto
+  resolution: 1024
+  enable_gradient_checkpointing: true
+
+data:
+  kind: cityscapes
+  root: "/workspace/data/cityscapes"   # RunPod network volume (leftImg8bit/ + gtFine/)
+  split: train
+  caption_mode: template
+  # Table 12's fixed training prompt: one prompt for the whole dataset, no {city}.
+  # c_Aug (prompt_augmentations.json v3) is a rewrite of exactly this string, so
+  # the two have to be changed together.
+  caption_template: "photorealistic first-person urban street view"
+  concept_axes: [style, viewpoint]
+  augmentation_file: configs/prompt_augmentations.json
+  # The paper's full augmentation (Table 12): random crop + random hflip. The
+  # random crop makes dataset[i] non-deterministic, so training falls back from
+  # the latent cache to per-step VAE encoding — slower, but dropping a documented
+  # augmentation would weaken the reproduction claim. Measurement call sites
+  # override both to center/no-flip regardless.
+  crop: random
+  hflip: true
+
+measure:
+  timesteps: [1, 81, 201, 481]
+  num_samples: 256
+  batch_size: 1           # >1 changes the estimand; see MeasureConfig
+  augs_per_sample: 4      # 5 templates per axis, drawn without replacement
+  split_half: true        # even/odd sample halves, for the t-ranking stability check
+  granularity: matrix
+  accumulate_direction: true
+  compute_paired_cosine: true
+  save_direction_vectors: false
+  accum_device: auto
+  seed: 0
+  paired_across_timesteps: true
+  log_every: 16
+  # Drift snapshots only (never measure_ca.py). Enabled 2026-07-31 after the
+  # base-model gate passed: spearman 0.9988 / jaccard 0.935, 1.89x faster
+  # (runs/sdxl_cityscapes/base/drift_autocast_gate.json). Same for all 8 runs.
+  drift_autocast: bf16
+
+select:
+  # head = the paper's unit (one attention head's slice of a fused matrix).
+  # Switch to `module` to reproduce the earlier fused-nn.Linear results as a
+  # granularity ablation; measurements are not interchangeable between the two.
+  granularity: head
+  fraction: 0.02          # the paper's headline setting
+  # auto -> unit_count at head granularity (the paper's "top k% of projection
+  # layers"), attn_params at module granularity (what the module-unit runs used).
+  budget_basis: auto
+  axis: style
+  normalization: sum
+  aggregation: normalized_mean
+  single_timestep: 81
+  # Pre-registered default; the trained multi-t selection overrode this to 3
+  # at selection time (disclosed change, report Section 5.2 / Table 1 row 5).
+  top_timesteps: 5
+  similarity_source: cos_of_means
+  tscore_ca_weighting: mean
+  tscore_ca_normalization: sum
+  conflict_sim_quantiles: [0.1, 0.2, 0.3, 0.4, 0.5]
+  conflict_primary_quantile: 0.3
+  tscore_selection_multiplier: 5   # n in the top-n*k weighted similarity
+
+train:
+  lora:
+    rank: 64
+    alpha: 64
+    dropout: 0.0
+    init_lora_weights: gaussian
+  max_steps: 10000
+  batch_size: 1           # Table 12
+  gradient_accumulation_steps: 1   # Table 12 states batch 1 and no accumulation
+  learning_rate: 1.0e-4
+  lr_scheduler: constant
+  lr_warmup_steps: 0
+  max_grad_norm: 1.0
+  mixed_precision: "no"
+  seed: 0
+  checkpoint_every: 2000
+  log_every: 50
+  stability_every: 500        # CA-drift tracking rides along on this run
+  stability_num_samples: 64
+
+eval:
+  num_images: 500             # few-shot setting; also the CMMD comparison set
+  guidance_scale: 5.0         # Table 12
+  num_inference_steps: 25     # Table 12
+  prompt: "photorealistic first-person urban street view"   # Table 12
+  include_class_names: true   # "... with [Class names]" (Table 12)
+  weather_conditions: [foggy, night-time, rainy, snowy]     # "four diverse"
+  images_per_condition: 100   # paper: 100 generated images per condition
+  reference_split: val        # NOT in the paper — our decision (exactly 500 images)
+  reference_num_images: 500
+  clip_model: openai/clip-vit-large-patch14   # NOT in the paper — our decision
+  generation_batch_size: 4
+  seed: 0

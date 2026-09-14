@@ -1,0 +1,86 @@
+# Offline CPU development config: toy UNet, synthetic data, no downloads.
+# Every command must run end-to-end under this config before touching a GPU.
+name: tiny_cpu
+output_dir: runs
+
+model:
+  kind: toy
+  dtype: float32
+  device: cpu
+  resolution: 64
+  toy:
+    base_channels: 32
+    context_dim: 32
+    latent_channels: 4
+    vae_scale_factor: 8
+    text_seq_len: 8
+    seed: 0
+
+data:
+  kind: dummy
+  num_dummy_items: 8
+  concept_axes: [style, viewpoint]
+  augmentation_file: configs/prompt_augmentations.json
+  caption_template: "photorealistic first-person urban street view"
+  hflip: true
+
+measure:
+  timesteps: [1, 81, 201, 481, 750]
+  num_samples: 8
+  batch_size: 1
+  augs_per_sample: 2
+  split_half: true
+  granularity: matrix
+  accumulate_direction: true
+  compute_paired_cosine: true
+  accum_device: cpu
+  seed: 0
+  log_every: 0
+
+select:
+  granularity: head
+  fraction: 0.1            # 2% of an 80-unit toy model would be a single head
+  budget_basis: auto
+  axis: style
+  normalization: sum
+  aggregation: normalized_mean
+
+# n=2 is not in the draft's experiment matrix; it is the cheapest scheme that
+# still exercises routing between two experts on CPU.
+intervals:
+  schemes: [1, 2]
+
+interval_select:
+  mode: aggregate
+  representative:
+    n1: [81]
+    n2: [81, 750]
+  fixed_timestep: 81
+
+train:                     # fostering hyperparameters (one expert per run)
+  lora:
+    rank: 4
+    alpha: 4
+  max_steps: 2
+  batch_size: 2
+  learning_rate: 1.0e-4
+  mixed_precision: "no"
+  checkpoint_every: 0
+  log_every: 1
+
+assemble:
+  sets: [n1, n2]
+  core: n2
+  max_steps: 2
+  batch_size: 2
+  learning_rate: 1.0e-3
+  log_every: 1
+
+eval:
+  num_images: 4
+  num_inference_steps: 4
+  weather_conditions: [foggy]
+  images_per_condition: 2
+  reference_split: train
+  reference_num_images: 4
+  generation_batch_size: 2

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "catsm"
+version = "0.1.0"
+description = "CA-LoRA with TimeStep Master: per-interval concept-aware sliced LoRA experts"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "PyYAML>=6.0",
+    "Pillow>=10.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Real Stable Diffusion runs. The toy model and every test work without these.
+diffusion = [
+    "diffusers>=0.27",
+    "transformers>=4.38",
+    "peft>=0.10",
+    "accelerate>=0.28",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The vendored calora in src/ must shadow any calora installed elsewhere.
+pythonpath = ["src"]
+filterwarnings = ["ignore::DeprecationWarning"]
+addopts = "--basetemp=.pytest_tmp"
+markers = [
+    "gpu: needs a CUDA device (tests/test_gpu.py; skipped otherwise)",
+    "sdxl: real SDXL weights; opt in with CATSM_SDXL_SMOKE=1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
