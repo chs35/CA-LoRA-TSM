@@ -63,7 +63,7 @@ intervals:
   boundaries: {}
 
 interval_select:
-  mode: aggregate          # (B) pool every measured t inside the interval; (A) = representative
+  mode: representative     # (A) one t per interval — user decision 2026-09-15 after the §4 diagnosis (see runs/sdxl_cityscapes/diagnosis/DECISION.md)
   representative:          # used only when mode: representative — one t per interval, lowest first
     n1: [81]
     n3: [81, 375, 750]

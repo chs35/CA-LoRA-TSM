@@ -161,6 +161,8 @@ python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml            #
 - [125,249]: 기존 측정에는 201만 속한다(121은 [62,124]). 125를 재야 경합이 성립한다.
 - t≥601의 선택 집합은 81의 집합과 Jaccard 0.03~0.05로 거의 겹치지 않고, t=401~701의 split-half Jaccard는 0.33~0.47로 **top-2% 집합의 절반 가량이 샘플링 노이즈**다. draft §3.4의 우려(높은 구간 선택 불안정 → random-sliced 또는 미적용 검토, C2)가 데이터로 확인된 셈이므로 결정 보고에 포함한다.
 
+**결정 완료(2026-09-15, 사용자):** n3 [81, 375, 750], n4 [81, 201, 375, 750], n5 [41, 81, 201, 375, 750]; 경계는 절반 자르기 그대로. 근거와 sha는 `runs/sdxl_cityscapes/diagnosis/DECISION.md`. config는 `interval_select.mode: representative`로 바뀌었고 `selections/n3,n4,n5/`가 생성됨.
+
 **결정 후 config 반영:**
 
 ```yaml
