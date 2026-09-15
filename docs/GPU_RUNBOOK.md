@@ -189,7 +189,11 @@ python -m catsm.cli select --config configs/sdxl_cityscapes.yaml --name sdxl_c1 
 
 ## 3단계 — Fostering (구간별 sliced LoRA 학습)
 
-우선순위(draft §6): **n4_i0..i3 → C1의 n4_i0..i3** (주논지에 필요한 8개) → 여유 시 n3(3개), n5(5개).
+> **상태(2026-09-15 16:45 KST): 3단계 완료.** `runs/sdxl_cityscapes/experts/` 13개(n1_i0 import, n3_i0·n4_i0..i3·n5_i0·n5_i1 학습, n3_i1·n3_i2·n5_i2..i4 공유) + `runs/sdxl_c1/experts/` n4_i0..i3. 실측: expert당 70~76분(1.05~1.15 s/step), VRAM 14.5 GB, 학습 12회 총 약 14.5시간. 모든 파일 재로드·유한값·t 범위 확인. loss 곡선 `runs/loss_curves.png`(`scripts/plot_loss.py`), paired loss `experts/*/paired_loss*.json`(`scripts/paired_loss.py`). 다음: 4단계.
+
+**같은 구간·같은 선택 sha의 expert는 한 번만 학습하고 가중치를 공유한다(사용자 결정 2026-09-15).** 절반 자르기 경계에서는 n4_i1=n5_i2([125,249]@201), n3_i1=n4_i2=n5_i3([250,499]@375), n3_i2=n4_i3=n5_i4([500,999]@750)가 정의상 같은 학습이므로(같은 sha·구간·seed; 따로 돌리면 GPU 비결정성만 더해짐 — n4_i0 vs C1 n4_i0 최대 차이 0.04로 확인) 고유 expert는 13개가 아니라 8개다. 복사는 `python scripts/share_expert.py --config $CFG --from n4_i2 --to n3_i1 n5_i3`: 텐서는 bit-동일, safetensors 헤더의 `expert`/`interval_scheme`만 재스탬프하고 `shared_from`을 남긴다(`SHARED_FROM.json`). 구간이나 sha가 다르면 거부한다. `scripts/stage3_queueC.sh`가 남은 4개(n5_i0, n4_i1, n4_i2, n4_i3) 학습 후 공유까지 자동으로 한다. 리포트에는 "명목 13개, 실제 학습 8개(32K step)"로 적는다.
+
+학습 순서는 사용자의 지시에 따른다.
 
 **n1_i0는 이미 있다** (준비 상태 표 참조: import된 step-4000 체크포인트, `foster`를 돌리면 덮어쓰므로 돌리지 않는다). 새로 foster한 expert와 학습 조건이 완전히 같지는 않으므로(drift 스냅숏 merge/unmerge) 시간이 남으면 마지막에 `foster --expert n1_i0`로 새로 학습해 두 파일의 결과 차이를 리포트에 적는다. 그때는 기존 파일을 `experts/n1_i0_imported/`로 옮겨 보존한다.
 
@@ -203,7 +207,7 @@ nohup python -m catsm.cli foster --config $CFG --expert n1_i0 > runs/sdxl_citysc
 - 실측 속도(상위 저장소, 같은 조건 10K step): **2.54 s/step → expert당 약 2.8시간.** 8개 ≈ 22시간, n3·n5까지 16개 ≈ 45시간.
 - 강건성 sweep(draft §5.3, 여유 시): `foster --expert n1_i0 --selection runs/sdxl_cityscapes/selections/n1/n1_i0_t0041.json --name sdxl_sweep_t41` 식으로 선택 파일만 바꿔 별도 run에 학습한다(t=1, 41, 201 파일이 이미 있음).
 - viewpoint 축 실험은 `--name sdxl_cityscapes_viewpoint --set select.axis=viewpoint`로 run dir를 분리한다(draft의 주 실험은 style).
-- 동시 실행: 첫 expert에서 `nvidia-smi`로 VRAM 피크를 잰 뒤, 2배가 80 GB 아래이면 두 개 병렬. 아니면 순차. 병렬 시 각각 `OMP_NUM_THREADS=8`.
+- 동시 실행: **하지 않는다(2026-09-15 실측).** 단독 fostering은 VRAM 14.5 GB, 1.08 s/step(4K step ≈ 72분, 상위 저장소의 2.54 s/step보다 빠름)이지만 GPU 사용률이 이미 100%라, 두 개를 병렬로 돌리면 각각 2.36 s/step → 합산 1.18 s/step으로 순차보다 9% 느리다. 큐는 하나만 돌린다(`scripts/foster_queue.sh`).
 - 각 expert 종료 시 확인: `train_summary.json`의 `t_min_seen/t_max_seen`이 구간 안, loss 유한, `lora-final.safetensors` 재로드(`catsm.train.assemble.load_expert_into`로 pristine UNet에 붙여보기 — 4단계가 어차피 한다).
 
 **보고 규칙 (30분 단위, 4단계도 동일):** `/loop 30m`으로 아래를 반복 보고한다.
