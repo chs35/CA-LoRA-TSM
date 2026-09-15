@@ -29,9 +29,26 @@ source scripts/env.sh                   # venv + PYTHONPATH=src + HF_HOME=/works
 python -c "import torch; print(torch.cuda.get_device_name(0))"
 ```
 
-- 모든 장기 실행은 `nohup ... > runs/<name>/logs/<job>.out 2>&1 &` 로 띄우고 PID를 기록한다.
+- 모든 장기 실행은 `nohup ... > runs/<name>/logs/<job>.out 2>&1 &` 로 띄우고 PID를 기록한다. **PID는 `$!`가 아니라 `pgrep -f <스크립트>`로 잡는다**: `source env.sh && ... && nohup ... &` 처럼 `&&` 체인 끝에 `&`를 붙이면 `$!`는 서브셸 PID라서 kill해도 python은 살아남는다(2026-09-14 실제 발생). 종료 확인은 `pgrep -af`와 `nvidia-smi --query-compute-apps=pid`로 한다.
 - 네트워크 볼륨은 간헐적으로 EIO를 낸다(상위 저장소 실측). 체크포인트·이미지는 저장 직후 다시 열어 검증하고, 손상 파일은 지우고 `--skip-existing`으로 재개한다.
 - `--set` 값은 YAML로 파싱된다. `train.mixed_precision=no`는 `False`가 되어 거부되므로 생략(기본값 "no")하거나 `"'no'"`로 인용한다.
+
+## 보고 원칙 (전 단계 공통, 사용자 지시 2026-09-14)
+
+**30분 단위로 보고한다** (`/loop 30m`). **보고의 모든 시각은 서울 시간(KST, UTC+9)으로 적는다**(사용자 지시 2026-09-14; `TZ=Asia/Seoul date`). 로그 파일의 타임스탬프는 UTC이므로 +9h로 환산한다. 각 단계의 개별 보고 규칙(1단계의 "현재 t·완료 t·예상 종료", 3·4단계의 step 줄)은 이 원칙의 세부 형식이다. 매 보고에 다음을 적는다.
+
+```
+[HH:MM KST] 단계 <N> — <세부 단계>            예) 1단계 — t=61 측정
+  진행도: <세부 단계 %> (<근거: step k/N, 샘플 i/256 등>)
+  세부 단계 예상 종료: <시각>
+  단계 전체 예상 종료: <시각> (완료: <목록> / 남은 것: <목록>)
+  오류: 없음 | <내용 → 대응 결과>
+```
+
+- **오류가 나면 30분을 기다리지 않고 즉시 대응하고 보고한다.** 대응 = 원인 확인(로그·프로세스·VRAM·EIO) → 조치(재시작·손상 파일 삭제 후 `--skip-existing` 재개·설정 변경) → 결과. **1단계 종료 이후(2·3단계부터)는 사용자 답장을 기다리지 않는다**(사용자 지시 2026-09-14): 문제가 생기면 보고를 남기고 즉시 대응한다(재시작, 손상 파일 삭제 후 재개, 병렬→순차 전환, 설정 변경 등). 대응 내용과 근거는 보고와 `runs/<run>/logs/`에 남긴다. 예외는 완료된 산출물(체크포인트·측정 파일)을 지우는 것뿐이며, 이 경우에만 보고 후 기다린다.
+- 오류 판단 기준: 프로세스 사망, 로그 10분 이상 정체, loss NaN/급증, `leaves the expert's interval`, CUDA OOM, EIO, 저장 직후 재로드 실패.
+- 진행도의 근거(로그 줄)와 예상 종료의 계산 근거(실측 s/step 또는 t당 분)를 함께 적는다. 단계가 바뀌거나 세부 단계가 끝나면 30분 주기와 무관하게 한 줄 보고한다.
+- 보고 정보원: `runs/<run>/run.log`, `runs/<run>/logs/<job>.out`, `experts/<expert>/train_summary.json`, `nvidia-smi`, `kill -0 <PID>`.
 
 ---
 
@@ -72,13 +89,15 @@ nohup python scripts/measure_ca.py --config configs/sdxl_cityscapes.yaml --skip-
 - 각 t의 `direction_concentration_mean`이 로그에 찍힌다. 1/√n 랜덤 바닥보다 낮은 축이 있으면 보고한다.
 - **경계 t 추가 측정 규칙(2단계 결과에 따라):** 어떤 구간의 대표 t가 경계에 붙어 결정되면(예: [0,61]이 61로 결정) 인접 구간 쪽 경계 t(62)도 재서, 경계를 사이에 둔 두 선택 집합이 실제로 달라지는지 Jaccard로 확인한다. 같은 명령에 t를 추가하고 `--skip-existing`으로 돌리면 된다.
 
+**무인 핸드오프(사용자 지시 2026-09-14):** 1단계가 끝나면 별도 지시 없이 2단계(진단, 시각화만)와 3단계 일부(n4_i0·n3_i0·n5_i1을 t=81 선택 `selections/n1/n1_i0.json`으로, C1 n4_i0..i3를 `--name sdxl_c1`로)를 병렬로 시작한다. `scripts/stage1_to_3_handoff.sh <measure_pid>`가 이를 자동화한다(PID 종료 대기 → 20 t 검증 → `diagnose_ca.py` → `scripts/foster_queue.sh` 큐 A/B; 큐 B는 A 종료 후 순차 — 병렬은 실측상 손해, 3단계 참조). 로그: `logs/handoff.out`, `logs/foster_queueA.out`, `logs/foster_queueB.out`.
+
 **보고:** 측정은 t 하나가 75분이므로 30분 보고에 "현재 t, 완료된 t 목록, 남은 t × 75분 = 예상 종료"를 적는다.
 
 ---
 
 ## 2단계 — 구간별 대표 t 결정 (CA-LoRA의 시각적 휴리스틱)
 
-**휴리스틱 = 그림을 보고 사람이 결정한다(사용자 결정, 2026-09-14).** 점수는 계산하지 않는다. `scripts/diagnose_ca.py`가 측정 파일에서 다음 그림을 만든다(13 t × 10,400 unit에 약 40초).
+**휴리스틱 = 그림을 보고 사람이 결정한다(사용자 결정, 2026-09-14).** 점수는 계산하지 않는다. **에이전트는 이 단계에서 시각화만 하고 결정을 내리지 않는다**(사용자 지시 2026-09-14): 그림·`DECISION_TEMPLATE.md`·참고 수치를 보고하고 멈춘다. `DECISION.md` 작성, config 반영, n3/n4/n5 `select` 실행은 사용자 결정 후에만 한다. 그동안 GPU를 쓰지 않도록 `select`에는 `--set model.device=cpu`를 붙인다. `scripts/diagnose_ca.py`가 측정 파일에서 다음 그림을 만든다(13 t × 10,400 unit에 약 40초).
 
 ```bash
 python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml            # -> runs/sdxl_cityscapes/diagnosis/
