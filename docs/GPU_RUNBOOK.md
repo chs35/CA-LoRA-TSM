@@ -30,7 +30,7 @@ python -c "import torch; print(torch.cuda.get_device_name(0))"
 ```
 
 - 모든 장기 실행은 `nohup ... > runs/<name>/logs/<job>.out 2>&1 &` 로 띄우고 PID를 기록한다. **PID는 `$!`가 아니라 `pgrep -f <스크립트>`로 잡는다**: `source env.sh && ... && nohup ... &` 처럼 `&&` 체인 끝에 `&`를 붙이면 `$!`는 서브셸 PID라서 kill해도 python은 살아남는다(2026-09-14 실제 발생). 종료 확인은 `pgrep -af`와 `nvidia-smi --query-compute-apps=pid`로 한다.
-- 네트워크 볼륨은 간헐적으로 EIO를 낸다(상위 저장소 실측). 체크포인트·이미지는 저장 직후 다시 열어 검증하고, 손상 파일은 지우고 `--skip-existing`으로 재개한다.
+- 네트워크 볼륨은 간헐적으로 EIO를 낸다(상위 저장소 실측). 체크포인트·이미지는 저장 직후 다시 열어 검증하고, 손상 파일은 지우고 `--skip-existing`으로 재개한다. **2026-09-17 17:27 KST 실제 발생:** No.1 생성 180/900에서 mfs가 PNG를 조용히 깨뜨려 PIL이 `SyntaxError: broken PNG file`을 냈다. calora의 `save_image_verified`는 `OSError`만 재시도하므로 arm이 죽었다(EIO가 아닌 세 번째 유형). 대응: 저장된 179장 전부 디코드 검증(이상 없음) → `scripts/generate_images.py`에 `save_image_robust`(어떤 예외든 파일 삭제 후 최대 4회 재기록) 추가 → 같은 큐 명령으로 재개(`--skip-existing`). 손실 약 12분.
 - `--set` 값은 YAML로 파싱된다. `train.mixed_precision=no`는 `False`가 되어 거부되므로 생략(기본값 "no")하거나 `"'no'"`로 인용한다.
 
 ## 보고 원칙 (전 단계 공통, 사용자 지시 2026-09-14)
@@ -224,7 +224,20 @@ nohup python -m catsm.cli foster --config $CFG --expert n1_i0 > runs/sdxl_citysc
 
 ## 4단계 — Assembling (router 학습)
 
-주논지 구성(draft §5.1) 순서: **No.1 → No.2 → No.3 → C1**, 여유 시 No.4, 5, 8, C2.
+> **준비 상태(2026-09-16 KST, 준비 세션):** 4·5단계는 `scripts/stage4_assemble_queue.sh`와 `scripts/stage5_eval_queue.sh`로 구성 이름만 넘겨 순차 실행한다(아래). 번들 점검은 `scripts/router_stats.py`(메타데이터·유한값·`fc.bias` 이동·모듈별 g0 게이트 통계·heatmap), 결과 집계는 `scripts/collect_results.py`. 테스트 50 passed + 1 skipped 재확인. **스모크 통과(20:42~20:51 KST):** No.1 하드 번들 51초(195 텐서, 31 MB, sha 55e73f3c), 번들로 6장 생성 1분 36초(배치 4 × 2, 약 2.1 s/it → 900장 ≈ 3.0 h), `gate_hook_calls = 50 = 25 step × 배치 수 2`(CFG는 호출 수를 늘리지 않음; 옛 "2 ×" 공식은 틀림), reference 500장 export 4.7분, CMMD·CLIP 정상(`no1_smoke/eval.json`, 수치는 6장이라 무의미).
+>
+> **사용자 결정(2026-09-16):** n1_i0는 import본 유지(재학습 없음). **m>1인 7개 시나리오(No.3~No.9) 전부 라우터 학습**하고 생성·평가한다. 생성 seed는 1개만. 강건성 sweep은 추후 결정. C2는 주논지 결과를 본 뒤 최종 구성에 적용. base 대조군은 상위 `control_base/eval.json` 재사용. 최종 expert의 paired loss 재확인은 한다(`scripts/stage3b_paired_loss.sh`). 전체를 `scripts/stage4_5_handoff.sh`가 무인으로 잇는다: 번들 10개 → paired loss 18회 → 생성·평가 10 구성(No.1, 2, 3, C1 먼저).
+
+> **상태(2026-09-19 20:17 KST): 5단계 완료.** 주 구성 10개(No.1~No.9, C1) + C2 2개(c2n2, c2n3) 생성·평가 끝, 집계표 `runs/results_table.md`. GPU 유휴. 다음: 6단계 `docs/RESULTS.md`; 선택 GPU 작업(seed 반복, 강건성 sweep)은 사용자 결정 대기.
+> **상태(2026-09-17 13:46 KST): 4단계 완료.** 번들 10개(하드 3 + 라우터 7, batch 8, 각 127~140분, 총 16 h 13 min) 전부 점검 이상 없음. paired loss 18회 완료, No.3 라우터 번들 생성 스모크 통과. 사용자 지시로 5단계 자동 진입을 막고 중간 점검 보고서 `docs/INTERIM_REPORT_2026-09-17_stage4.md`를 작성했다. **5단계는 사용자 승인(09-17 16:38 KST)으로 `scripts/stage5_eval_queue.sh no1 no2 no3 c1 no4 no5 no6 no7 no8 no9`를 띄워 진행 중이다** (로그 `runs/sdxl_cityscapes/logs/eval_queue.out`, `gen_<arm>.out`, `eval_<arm>.out`; PID는 `pgrep -f stage5_eval_queue`).
+
+주논지 구성(draft §5.1) 순서: **No.1 → No.2 → No.3 → C1**, 그 뒤 No.4~No.9(전부, 사용자 결정 2026-09-16), C2는 최종 구성 확정 후.
+
+```bash
+nohup scripts/stage4_assemble_queue.sh no1 no2 c1 no3 > runs/sdxl_cityscapes/logs/assemble_queue.out 2>&1 &   # 주논지 4개
+nohup scripts/stage4_assemble_queue.sh no4 no5 no8 c2 > runs/sdxl_cityscapes/logs/assemble_queue2.out 2>&1 &  # 확장(5단계 주논지 생성이 끝난 뒤, GPU 단독)
+```
+큐는 번들이 이미 있으면 건너뛰고, 번들마다 `bundle_stats.json`·`gate_heatmap.png`·`bundle_stats.out`을 번들 폴더에 남기며, 라우터 번들의 `fc.bias`가 초기값에서 움직이지 않으면 중단한다. 아래 개별 명령은 큐가 하는 일과 같다.
 
 ```bash
 CFG=configs/sdxl_cityscapes.yaml
@@ -235,14 +248,30 @@ python -m catsm.cli assemble --config $CFG --name sdxl_c1 --sets n4 --core n4 --
 # 여유 시: No.4 --sets n1 n3 n4 --core n4 / No.5 --sets n1 n4 n5 --core n4 / No.8 --sets n1 n3 n4 n5 --core n4
 ```
 
-- 설정: expert 동결, router(FC + E(t), 모듈별 raw gate, init 1.0) 1000 step, lr 1e-3, batch 1. 매 step UNet forward+backward가 있으므로 fostering과 비슷한 step 비용(≈2.5 s) → **구성당 약 45분**.
-- 산출: `bundles/<sets>-core-<core>/bundle.safetensors` (`format=tsm-sliced-v1`), `assemble_summary.json`. 확인: `router.fc.bias`가 초기값 1.0에서 움직였는지, gate 통계(모듈별 평균/부호)를 요약에서 뽑아 보고.
+- 설정: expert 동결, router(FC + E(t), 모듈별 raw gate, init 1.0) 1000 step, lr 1e-3, **batch 8**(사용자 결정 2026-09-16 21:05 KST: batch-1 L_Diff는 (이미지, t) 추첨이 지배해 라우터 gradient 잡음이 커서 배치를 키움; 8이 A100에 들어가면 8, 아니면 4. batch 1로 돌던 No.3은 step 450에서 중단·삭제하고 재시작, 로그는 `assemble_no3_batch1_aborted.out`), fp32. **실측 batch 8: 7.63 s/step, VRAM 40.2 GB → 라우터당 약 2 h 7 min, 7개 ≈ 15 h.** 매 step UNet forward+backward가 있으므로 fostering(실측 1.08 s/step)과 비슷한 step 비용 → batch 1이었다면 라우터당 약 20분(No.3 batch-1 실측: 65 gated module, 65,325 파라미터, 1.12 s/step, VRAM 14.5 GB)이지만 batch 8로는 **약 2 h 7 min**. 하드 라우팅 구성(No.1, 2, C1)은 SDXL 로드 + expert 로드 + 저장만이라 **각 2~3분**. 라우터 학습도 fostering처럼 random crop 때문에 latent 캐시가 꺼지고 매 step VAE 인코딩을 한다(정상, 로그의 `cache_latents ... ignored` 경고).
+- 산출: `bundles/<sets>-core-<core>/bundle.safetensors` (`format=tsm-sliced-v1`), `assemble_summary.json`, 큐가 만드는 `bundle_stats.json`(`scripts/router_stats.py`). 확인: `router.bias_moved: true`, 모듈별 g0 = bias + E(t)의 구간별 평균·부호(`per_set.<set>.by_core_interval / by_block / by_kind`), `gate_heatmap.png`(모듈 × t). z 항(`fc.weight`)은 0에서 시작하므로 그 노름만 보고한다. 이 파일들이 6단계 "router 분석"의 재료다.
+- **C2 실행(2026-09-19 08:59 KST, 사용자 요청):** 주논지 결과에 단일 최고 구성이 없어(CMMD 최고 C1, 제어성 최고 No.2) C2를 두 구성에 붙인다. `c2n2` = No.2(n4 하드)에서 n4_i3 비활성([500,999]는 base만, 학습 없음), `c2` = No.3(n1+n4 라우터)에서 n4_i3 비활성([500,999]는 n1_i0, 라우터 재학습 약 2.3 h). `scripts/stage5_c2_followup.sh`가 주 큐(No.9) 종료를 기다렸다가 assemble → 생성·평가 → 집계표까지 무인으로 잇는다(로그 `logs/c2_followup.out`, 약 10 h).
 - **C2(높은 구간 expert 비활성):** `assemble --sets n1 n4 --core n4 --disable n4_i3` → `bundles/n1+n4-core-n4-disable-n4_i3/`. 비활성 expert는 번들에 저장은 되지만 모든 t에서 가중치 0으로 라우팅되고(`disabled` 메타데이터로 재로드 시 복원), 그 구간은 남은 set(여기서는 n1_i0)이 맡는다. 라우터는 활성 context expert가 있는 모듈만 게이트한다. "최종 구성"이 정해진 뒤 그 구성에 `--disable <최고 구간 expert들>`을 붙여 만든다.
 - 보고 규칙은 3단계와 동일(`router step k/1000` 줄).
 
 ---
 
 ## 5단계 — Evaluation
+
+**큐(2026-09-16):** `scripts/stage5_eval_queue.sh <이름...>`이 구성마다 생성(`--skip-existing`, 재개 가능) → manifest 검증(이미지 수 900, 번들 arm은 `gate_hook_calls > 0`, 파일 존재) → `evaluate.py` → `eval.json`을 순차로 한다. `SMOKE=1`은 2 + 4장짜리 arm `<이름>_smoke`, `SEED=k`는 생성 seed 반복 arm `<이름>_sk`, `base`는 LoRA 없는 대조군. C1은 `runs/sdxl_c1/reference`를 `runs/sdxl_cityscapes/reference`로 symlink해 CMMD reference export(Cityscapes val 500장)를 한 번만 한다.
+
+```bash
+SMOKE=1 scripts/stage5_eval_queue.sh no1                                                     # 배관 확인(약 10분, reference export 포함)
+nohup scripts/stage5_eval_queue.sh no1 no2 no3 c1 > runs/sdxl_cityscapes/logs/eval_queue.out 2>&1 &    # 주논지 4 구성 ≈ 13~17 h
+nohup scripts/stage5_eval_queue.sh no4 no5 no8 c2 > runs/sdxl_cityscapes/logs/eval_queue2.out 2>&1 &   # 확장(번들이 있어야 함)
+SEED=1 nohup scripts/stage5_eval_queue.sh no3 no1 > runs/sdxl_cityscapes/logs/eval_queue_s1.out 2>&1 & # 시드 반복(상위 2~3 + No.1)
+U=/workspace/Optimizing-CA-LoRA/runs/sdxl_cityscapes; python scripts/collect_results.py --extra $U/control_base/eval.json $U/A_t81_style/eval.json $U/C_t41_style/eval.json $U/B_top3_style/eval.json $U/D_t1_style/eval.json $U/E_all/eval.json $U/E_random/eval.json   # 6단계 표: base 0% + 상위 A_t81(10K)·C_t41·B_top3(multi-t 집계)·D_t1·E_all·E_random 참고행(사용자 요청 2026-09-18)
+```
+
+- **실측 생성 시간(상위 저장소 로그, 같은 스크립트·같은 프로토콜):** 900장(in_domain 500 + weather 4×100, 1024 px, 25 step, batch 4, fp32)에 **3.2 h(base) ~ 4.2 h(LoRA arm)**. 아래 "구성당 약 7.5시간"은 옛 추정이며 **구성당 약 3.5~4.5 h**로 잡는다(번들 arm은 MultiSlicedLoRA 컨테이너와 매 step 게이트 갱신이 더해져 상단). 평가(CLIP ViT-L/14, 900장)는 약 7분, reference export는 첫 1회 수 분.
+- **base 대조군 재사용(사용자 결정 필요):** 상위 저장소 `runs/sdxl_cityscapes/control_base/eval.json`(CMMD 4.078, in_domain CLIP 28.81, weather 31.68; foggy 32.86 / night 30.26 / rainy 32.03 / snowy 31.56)은 **프로토콜이 이 저장소와 완전히 같다**(같은 `generate_images.py` 계열, calora 동일 커밋 500c9ec, prompt·class-name 샘플러·per-image seed·guidance 5.0·25 step·Euler·seed 0). 이미지는 삭제됐지만 수치는 그대로 0% 기준으로 쓸 수 있다(`collect_results.py --extra`). 다시 생성하면 GPU 비결정성 수준의 차이만 나며 약 3.2 h가 든다 → 시간이 남을 때 `stage5_eval_queue.sh base`로 재생성해 일치 여부를 확인하는 것을 권한다.
+- **시드 반복의 주의:** `eval.seed`는 초기 노이즈뿐 아니라 class-name 프롬프트 추첨(`ClassNameSampler(seed=eval.seed)`)도 바꾼다. 따라서 `_s1`, `_s2`는 "프롬프트+노이즈를 함께 다시 뽑은 반복"이며, 구성 간 pairing은 시드별로 유지된다. 리포트에 이렇게 적는다.
+- **디스크:** 구성당 900장 ≈ 1.3~1.8 GB. `/workspace` 사용량 75 GB / 할당 150 GB(2026-09-16)라 구성 9개 + 시드 반복까지 여유 있음.
 
 **도구:** 이 저장소의 `scripts/generate_images.py`와 `scripts/evaluate.py` (상위 저장소 스크립트를 가져와 config 로더와 `--bundle`을 붙임). 상위 스크립트를 그대로 쓰면 안 된다: diffusers 파이프라인이 UNet을 직접 호출해 gate가 설정되지 않으므로 expert가 전부 무시된 base 이미지가 나온다. `--bundle`은 UNet forward pre-hook으로 매 denoising step `assembly.set_gate_for(t, sample)`를 호출하고(CFG의 2B 배치 그대로), manifest에 `gate_hook_calls`를 기록한다. 이 값이 0이면 번들이 적용되지 않은 것이다(스크립트는 이 경우 즉시 실패한다).
 
@@ -256,7 +285,7 @@ python scripts/generate_images.py --config $CFG --run-name base --skip-existing 
 python scripts/evaluate.py --config $CFG --run-name no3                                                    # -> $RUN/no3/eval.json (CMMD, CLIP-Score)
 ```
 
-- 첫 SDXL 생성 전에 `--set eval.num_images=2 eval.images_per_condition=1 --run-name smoke`로 한 번 돌려 `gate_hook_calls`가 `2 × num_inference_steps × 배치 수`인지 확인한다.
+- 첫 SDXL 생성 전에 `SMOKE=1 scripts/stage5_eval_queue.sh no1`로 한 번 돌려 `gate_hook_calls`가 `num_inference_steps × 배치 수`(6장 = 배치 2 → 50)인지 확인한다. 2026-09-16 스모크에서 50 확인.
 - `--embedder pixel`은 배관 확인용이며 그 수치는 보고하지 않는다.
 - **mIoU는 미진행**(Improving CA-LoRA와 동일, 사용자 확정). `eval.json`의 `miou`는 항상 null이며 draft §8의 "CMMD와 mIoU 함께 보고"는 CMMD + weather CLIP-Score로 대체하고 리포트에 명시한다.
 
@@ -293,3 +322,14 @@ python scripts/evaluate.py --config $CFG --run-name no3                         
 | 6 | 정리 | 2 h |
 
 n3/n5 추가 시 3단계 +22 h, 4·5단계 구성당 +8 h.
+
+**갱신(2026-09-16, 실측 기반):** 1~3단계 실제 소요 = 측정 7 t × 76 min ≈ 9 h, fostering 12회 ≈ 14.5 h. 남은 단계 예산:
+
+| 묶음 | 내용 | 시간 |
+|---|---|---|
+| 4 | No.1, No.2, C1(하드, 각 1분 미만) + 라우터 No.3~No.9 7개 × 2 h 7 min (batch 8) | ≈ 15 h |
+| 5 주논지 | No.1, No.2, No.3, C1 생성 4 × 3.5~4.5 h + 평가 4 × 7분 | 14~18 h |
+| base 대조군 | 상위 `control_base/eval.json` 재사용이면 0 h, 재생성이면 3.2 h | 0 / 3.2 h |
+| 5 확장 | No.4~No.9 생성·평가 6 × 3.3 h (+ C2 라우터 2 h + 생성 3.3 h) | ≈ 20 h (+5.5 h) |
+| 시드 반복 | 구성당 seed 1개 추가 ≈ 4 h (상위 2~3 + No.1, seed 2개 추가 = 6~8회) | 24~32 h |
+| 6 | 정리(`collect_results.py`, router_stats, RESULTS.md) | 2 h |

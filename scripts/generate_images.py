@@ -30,6 +30,7 @@ from __future__ import annotations
 import queue
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -140,6 +141,35 @@ def _image_path(output_dir: Path, record: dict) -> Path:
     return output_dir / folder.replace(" ", "_") / f"{record['index']:05d}.png"
 
 
+def save_image_robust(image, path: Path, *, attempts: int = 4, backoff: float = 1.0) -> Path:
+    """``save_image_verified`` plus a retry on decode errors that are *not* ``OSError``.
+
+    2026-09-17 17:27 KST: the mfs volume produced a PNG whose header survived but
+    whose chunk table was garbage; PIL raised ``SyntaxError("broken PNG file")``,
+    which the vendored saver does not catch, so one bad write killed a 900-image
+    arm at 180/900. Here any exception from the save+verify is treated the same
+    way: delete the file, back off, write again; give up only after ``attempts``.
+    """
+    path = Path(path)
+    last: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return save_image_verified(image, path)
+        except Exception as exc:  # noqa: BLE001 - PIL raises SyntaxError/ValueError on corrupt chunks
+            last = exc
+            try:
+                if path.exists():
+                    path.unlink()
+            except OSError:
+                pass
+            if attempt < attempts:
+                delay = backoff * 2 ** (attempt - 1)
+                logger.warning("Saving %s failed (%r); rewriting in %.1fs (attempt %d/%d)",
+                               path, exc, delay, attempt + 1, attempts)
+                time.sleep(delay)
+    raise RuntimeError(f"Giving up on {path} after {attempts} attempt(s): {last!r}") from last
+
+
 class _ImageWriter:
     """Encodes and saves finished batches on one background thread; the first
     failure is re-raised in the main thread so a dead write cannot pass as done."""
@@ -224,7 +254,7 @@ def main(argv: list[str] | None = None) -> None:
                 len(records), arm, cfg.eval.num_inference_steps, cfg.eval.guidance_scale,
                 adapter.scheduler_name)
 
-    writer = _ImageWriter(depth=2 * cfg.eval.generation_batch_size)
+    writer = _ImageWriter(depth=2 * cfg.eval.generation_batch_size, saver=save_image_robust)
     try:
         for start in range(0, len(records), cfg.eval.generation_batch_size):
             chunk = records[start:start + cfg.eval.generation_batch_size]
