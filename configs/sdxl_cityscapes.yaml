@@ -94,7 +94,7 @@ assemble:                  # router training, experts frozen (draft §3.2 step 4
   sets: [n1, n4]
   core: n4
   max_steps: 1000
-  batch_size: 1
+  batch_size: 8            # user decision 2026-09-16: batch-1 L_Diff is dominated by the (image, t) draw, so the router gradient needs a larger batch; 8 if it fits the A100, else 4. Steps stay 1000.
   learning_rate: 1.0e-3
   init_gate: 1.0           # raw router output; start from the plain sum of active experts
   seed: 0
