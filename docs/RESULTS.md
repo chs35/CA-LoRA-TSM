@@ -1,6 +1,7 @@
 # 결과 정리 — CA-LoRA with TimeStep Master (SDXL + Cityscapes, 2026-09-14 ~ 09-19)
 
 > 초안: GPU pod 세션(Fable 5.1), 2026-09-19 21:30 KST. 근거: `docs/draft.md`(연구 노트 v2), `docs/INTERIM_REPORT_2026-09-15.md`(0~3단계), `docs/INTERIM_REPORT_2026-09-17_stage4.md`(4단계), `docs/QUALITATIVE_2026-09-19.md`(정성), `runs/results_table.md`(집계, `scripts/collect_results.py`).
+> 정량 수치 전체(오차, 통제 대조, 진단·라우터·paired loss 원표)는 `docs/QUANTITATIVE.md`(`scripts/make_quantitative.py`로 원본 JSON에서 자동 생성).
 > 모든 수치는 생성 seed 1개(seed 0), 구성당 900장(in_domain 500 + 날씨 4조건 × 100), guidance 5.0, 25 step, Euler, 1024 px, CLIP ViT-L/14. mIoU 미진행(사용자 확정). 통계적 오차(seed 간 분산)는 측정하지 않았다(§8).
 
 ## 0. 한 줄 요약
