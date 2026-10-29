@@ -45,7 +45,7 @@ select:
   normalization: sum
   aggregation: normalized_mean
 
-# n=2 is not in the draft's experiment matrix; it is the cheapest scheme that
+# n=2 is not in the design doc's experiment matrix; it is the cheapest scheme that
 # still exercises routing between two experts on CPU.
 intervals:
   schemes: [1, 2]

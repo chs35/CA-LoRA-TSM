@@ -1,9 +1,9 @@
-"""Timestep intervals and expert naming (draft §3.2–3.3).
+"""Timestep intervals and expert naming (design §3.2–3.3).
 
 An expert set ``n<k>`` partitions the training timesteps ``[0, T-1]`` into ``k``
 contiguous, inclusive intervals, lowest t first. Boundaries are raw timesteps;
 the log-SNR of each boundary is recorded alongside so the same definition can be
-restated on another backbone (draft §3.3), but nothing routes on it.
+restated on another backbone (design §3.3), but nothing routes on it.
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ def validate_partition(intervals: Sequence[Interval], num_train_timesteps: int) 
 
 
 def halving_intervals(n: int, num_train_timesteps: int) -> tuple[Interval, ...]:
-    """Split ``[0, T-1]`` by halving from the top, ``n`` pieces (draft §3.3).
+    """Split ``[0, T-1]`` by halving from the top, ``n`` pieces (design §3.3).
 
     ``T=1000``: n=3 -> (500, 250, 250), n=4 -> (500, 250, 125, 125),
     n=5 -> (500, 250, 125, 63, 62) — the lowest two intervals are ``[0, 61]``

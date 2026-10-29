@@ -8,7 +8,7 @@ optimiser, the checkpoint format — is the reference implementation, reused.
 With the full interval ``[0, T-1]`` the draw is
 ``torch.randint(0, T, ...)`` under the same generator, so the n=1 expert is
 bit-identical to a reference ``train_lora`` run (pinned by tests): No.1 in the
-draft's matrix is a faithful same-step baseline.
+design doc's matrix is a faithful same-step baseline.
 
 The expert file keeps the single-adapter format (``<module>.lora_A`` …), so it
 loads with ``load_lora`` on its own and the Assembling stage renames its keys

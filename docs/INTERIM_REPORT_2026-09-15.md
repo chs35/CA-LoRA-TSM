@@ -1,6 +1,6 @@
 # 중간 점검 보고서 — 0~3단계 (2026-09-14 17:36 ~ 09-15 16:45 KST)
 
-> 작성: GPU pod 세션(Fable 5.1), 2026-09-15 17:00 KST. 근거 문서: `docs/draft.md`(연구 노트 v2), `docs/GPU_RUNBOOK.md`.
+> 작성: GPU pod 세션(Fable 5.1), 2026-09-15 17:00 KST. 근거 문서: `docs/design.md`(연구 노트 v2), `docs/GPU_RUNBOOK.md`.
 > 목적: 4단계(assemble)로 넘어가기 전에 1~3단계 산출물의 상태·근거·이탈 사항을 한 곳에 모아 둔다.
 
 ## 0. 한 줄 요약
@@ -45,7 +45,7 @@
 **그림에서 읽은 사실.**
 - 인접 t의 top-2% 집합은 같은 t를 다시 잰 것(split-half)만큼 비슷하다: 인접 19쌍 중 13쌍이 J(a,b) ≥ 0.95 × min(split-half). 뚜렷한 단절은 1|41(비 0.69)과 801|901|981(0.26, 0.55)뿐. 81|121, 601|701, 750|801은 작은 실제 변화(0.82~0.93).
 - 차이는 거리에 따라 누적된다(81 대비 J: 121→0.59, 250→0.33, 500→0.11, ≥601→0.02~0.05). 즉 구간 안의 대표 t보다 구간 폭이 선택 집합을 좌우한다.
-- [500,999]는 단일 t로 대표되지 않는다(750 vs 981 J 0.05; 601~750의 split-half 0.33~0.48로 집합의 절반이 샘플링 잡음). draft §3.4의 우려가 데이터로 확인됨.
+- [500,999]는 단일 t로 대표되지 않는다(750 vs 981 J 0.05; 601~750의 split-half 0.33~0.48로 집합의 절반이 샘플링 잡음). design §3.4의 우려가 데이터로 확인됨.
 - heatmap은 t에 따라 매끄럽게 드리프트한다(down2 후반·up0 전반 → mid·up0 후반, ≥701에서 up0 저해상). 분포 히스토그램의 style/viewpoint 모양 차이는 ≥375에서 커지고 ≥981에서 다시 겹친다.
 
 **결정(사용자, 2026-09-15).** 경계는 절반 자르기 유지(81이 포함된 구간은 확정). 대표 t:
@@ -109,7 +109,7 @@ batch-1 학습 loss는 어떤 이미지·어떤 t가 뽑혔는지가 거의 전�
 | n4_i0 step 1000 | −0.0012 (−0.4%) | 100% |
 | n1_i0(전 구간 4K) | −0.0012 (−0.4%) | 99% |
 
-학습은 1K→4K 사이에도 진행됐고, 구간 전문 expert가 자기 구간에서 전 구간 expert보다 1.5배 더 낮춘다(draft §2의 첫 신호, 96 샘플이라 최종 expert로 재확인 가치 있음). 결과 파일: `experts/n4_i0/paired_loss.json`, `experts/n4_i0/lora-step001000.paired_loss_t0-124.json`, `experts/n1_i0/lora-final.paired_loss_t0-124.json`.
+학습은 1K→4K 사이에도 진행됐고, 구간 전문 expert가 자기 구간에서 전 구간 expert보다 1.5배 더 낮춘다(design §2의 첫 신호, 96 샘플이라 최종 expert로 재확인 가치 있음). 결과 파일: `experts/n4_i0/paired_loss.json`, `experts/n4_i0/lora-step001000.paired_loss_t0-124.json`, `experts/n1_i0/lora-final.paired_loss_t0-124.json`.
 
 ## 5. 산출물 점검 결과 (2026-09-15 16:50 KST)
 
@@ -135,10 +135,10 @@ batch-1 학습 loss는 어떤 이미지·어떤 t가 뽑혔는지가 거의 전�
 
 ## 7. 프로토콜에서 벗어난 결정 (리포트에 명시할 것)
 
-1. **명목 13개 LoRA, 실제 학습 8개(32K step).** draft §7의 "13 × 4K = 52K"는 "동일 구성 expert는 공유"로 고쳐 적는다. 공유는 scheme 간 학습 잡음을 없애므로 No.4/5/8 비교가 더 깨끗해진다(불리한 점 없음).
+1. **명목 13개 LoRA, 실제 학습 8개(32K step).** design §7의 "13 × 4K = 52K"는 "동일 구성 expert는 공유"로 고쳐 적는다. 공유는 scheme 간 학습 잡음을 없애므로 No.4/5/8 비교가 더 깨끗해진다(불리한 점 없음).
 2. **C1 n4_i0는 n4_i0와 동일 구성인데 따로 학습했다.** 버리지 않고 "같은 설정 재실행의 가중치·평가 차이"를 재현성 참고치로 쓴다.
 3. **n1_i0는 새로 학습하지 않고 import했다**(상위 10K run의 step-4000, drift 스냅숏의 merge/unmerge 때문에 새 foster와 bit-동일하지 않음). 시간이 남으면 `foster --expert n1_i0`로 새로 학습해 차이를 기록(러너북 3단계).
-4. **mIoU 미진행**(사용자 확정, Improving CA-LoRA와 동일). draft §8의 "CMMD와 mIoU"는 CMMD + weather CLIP-Score로 대체.
+4. **mIoU 미진행**(사용자 확정, Improving CA-LoRA와 동일). design §8의 "CMMD와 mIoU"는 CMMD + weather CLIP-Score로 대체.
 
 그 밖에 사용자 지시로 확정된 운영 규칙: 보고는 30분 단위·KST, 2단계는 시각화만(결정은 사용자), 1단계 이후 오류는 보고 후 즉시 대응(완료 산출물 삭제만 예외), 1단계 종료 후 2·3단계 무인 병렬 진행.
 
@@ -154,4 +154,4 @@ batch-1 학습 loss는 어떤 이미지·어떤 t가 뽑혔는지가 거의 전�
 
 **5단계 평가**: 생성 전 `--set eval.num_images=2 eval.images_per_condition=1 --run-name smoke`로 `gate_hook_calls` 확인 → 구성당 in_domain 500 + weather 4×100(약 7.5시간/구성) → CMMD + CLIP-Score.
 
-**열린 질문**: (a) [500,999] expert의 대안(draft 3.2(B) 집계, random-sliced, 미적용)은 C2 결과를 본 뒤 결정. (b) 최종 expert로 paired loss 재확인 여부. (c) n1_i0 재학습 여부.
+**열린 질문**: (a) [500,999] expert의 대안(design 3.2(B) 집계, random-sliced, 미적용)은 C2 결과를 본 뒤 결정. (b) 최종 expert로 paired loss 재확인 여부. (c) n1_i0 재학습 여부.

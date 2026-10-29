@@ -31,7 +31,7 @@ def set_size(name: str) -> int:
 class IntervalsConfig:
     """Which interval schemes exist and how their boundaries are defined.
 
-    Boundaries default to halving from the top (draft §3.3); ``boundaries``
+    Boundaries default to halving from the top (design §3.3); ``boundaries``
     overrides a scheme's interior interval starts, e.g. ``{"n4": [125, 250, 500]}``,
     once the §4 diagnosis has fixed them.
     """
@@ -57,7 +57,7 @@ class IntervalsConfig:
 
 @dataclass
 class IntervalSelectConfig:
-    """How each interval's CA selection is made (draft §3.2 (A)/(B) and control C1)."""
+    """How each interval's CA selection is made (design §3.2 (A)/(B) and control C1)."""
 
     #: ``representative`` = one measured t per interval (A); ``aggregate`` = pool
     #: every measured t inside the interval (B); ``fixed`` = every interval uses
@@ -82,7 +82,7 @@ class IntervalSelectConfig:
 
 @dataclass
 class AssembleConfig:
-    """Router training over frozen experts (draft §3.2 step 4).
+    """Router training over frozen experts (design §3.2 step 4).
 
     The optimisation fields mirror :class:`calora.config.TrainConfig` by name so
     the reference loop helpers (index/flip draws, LR schedule, latent cache) can

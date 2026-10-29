@@ -1,9 +1,9 @@
-# SDXL + Cityscapes on a single A100 (draft §3, §7).
+# SDXL + Cityscapes on a single A100 (design §3, §7).
 #
 # CA measurement, selection ratio (2%), rank (64), data and the training prompt
 # follow CA-LoRA via the Improving-CA-LoRA reimplementation (vendored calora).
 # Fostering trains every expert for 4K steps on its own timestep interval; the
-# n=1 expert is the same-step internal baseline (draft §5.1 No.1), not the
+# n=1 expert is the same-step internal baseline (design §5.1 No.1), not the
 # paper's 10K number.
 name: sdxl_cityscapes
 output_dir: runs
@@ -29,7 +29,7 @@ data:
   hflip: true
 
 measure:
-  # Draft §4: 10-point skeleton first; add 61, 625, 875 where the block
+  # Design §4: 10-point skeleton first; add 61, 625, 875 where the block
   # structure is unclear. All points are also what interval_select.mode=aggregate
   # pools per interval.
   timesteps: [1, 41, 61, 81, 125, 201, 250, 375, 500, 750, 999]
@@ -54,7 +54,7 @@ select:
   normalization: sum
   aggregation: normalized_mean
 
-# Draft §3.3: halve from the top. Boundaries are raw t; the log-SNR of every
+# Design §3.3: halve from the top. Boundaries are raw t; the log-SNR of every
 # boundary is recorded next to the selections so the definition can be carried
 # to another backbone. Override a scheme's interior starts here once the §4
 # diagnosis has fixed the boundaries, e.g. `n4: [125, 250, 500]`.
@@ -71,7 +71,7 @@ interval_select:
     n5: [41, 81, 201, 375, 750]
   fixed_timestep: 81       # mode: fixed = control C1 (every interval selects at t=81)
 
-train:                     # fostering: per expert, draft §7
+train:                     # fostering: per expert, design §7
   lora:
     rank: 64
     alpha: 64
@@ -88,9 +88,9 @@ train:                     # fostering: per expert, draft §7
   seed: 0
   checkpoint_every: 1000
   log_every: 50
-  stability_every: 0       # CA drift is out of scope (draft §1)
+  stability_every: 0       # CA drift is out of scope (design §1)
 
-assemble:                  # router training, experts frozen (draft §3.2 step 4)
+assemble:                  # router training, experts frozen (design §3.2 step 4)
   sets: [n1, n4]
   core: n4
   max_steps: 1000

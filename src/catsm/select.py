@@ -1,4 +1,4 @@
-"""Per-interval CA head selection (draft §3.2, modes (A)/(B), control C1).
+"""Per-interval CA head selection (design §3.2, modes (A)/(B), control C1).
 
 The CA measurements themselves are calora's (``scripts/measure_ca.py`` →
 ``<run_dir>/measurements/t{t:04d}.safetensors``); this module only decides which

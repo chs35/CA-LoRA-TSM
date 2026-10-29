@@ -13,7 +13,7 @@
 | 자료 | 위치 | 어디에 썼는가 |
 |---|---|---|
 | Improving CA-LoRA 기술 보고서 (August 2026) | `/workspace/Optimizing-CA-LoRA/docs/REPORT.md`, https://github.com/chs35/Improving-CA-LoRA | 리포트의 구조 견본. 2.1·2.2절의 서술과 서지, 3.1절의 측정 단위·추정량·불변 조건, 선행 결과(t=41 vs 81, 선택 drift) 요약. References [26] |
-| 연구 노트 v2 (2026-09-11) | `docs/draft.md` | 문제의식, 핵심 가설, 방법 설계(구간, core/context, C1/C2), 구성표, 예상 시나리오 |
+| 연구 노트 v2 (2026-09-11) | `docs/design.md` | 문제의식, 핵심 가설, 방법 설계(구간, core/context, C1/C2), 구성표, 예상 시나리오 |
 | 정량 결과 (자동 생성) | `docs/QUANTITATIVE.md` ← `scripts/make_quantitative.py` | 1절 결과 요약의 모든 수치, 3.1절 실효 파라미터 비율(2.25~2.45%), expert 공유(13 중 8) |
 | 결과 해석 초안 (2026-09-19) | `docs/RESULTS.md` | 결과 요약의 해석 방향, 프로토콜 이탈 목록(4절 예정) |
 | 정성 평가 | `docs/QUALITATIVE_2026-09-19.md` | (아직 본문에 미사용. 5절 예정) |
@@ -35,7 +35,7 @@
 | [19] | M. Park, S. Park, J. Lee, H. Park, K. Hwang, F. Porikli, J. Choo, S. Choi. "Concept-Aware LoRA for Domain-Aligned Segmentation Dataset Generation." CVPR 2025 | arXiv:2503.22172 | 선행 | 전체. CA 정의, sliced LoRA, t=81 휴리스틱 |
 | [25] | S. Zhuang et al. "TimeStep Master: Asymmetrical Mixture of Timestep LoRA Experts for Versatile and Efficient Diffusion Models in Vision." ICML 2025 (PMLR v267) | https://arxiv.org/abs/2503.07416 , https://proceedings.mlr.press/v267/zhuang25a.html | 웹 | 2.3, 3.2, 3.3. Fostering/Assembling, core(게이트 없음)·context(timestep 의존 게이트), 적용 범위(UNet/DiT/MM-DiT, 도메인 적응·post-pretraining·증류) |
 
-TSM에 대해 **본문에 쓰지 않은 것**(확인하지 못해서): 구간 개수의 구체적 값, 게이트의 정확한 함수형, expert당 학습 step. `draft.md`는 "구간당 4K(TSM 기준)", "router = FC(z_t) + E(t)"라고 적고 있으나 논문 원문과 대조하지 않았다. 본문에서 인용하려면 원문 확인 필요.
+TSM에 대해 **본문에 쓰지 않은 것**(확인하지 못해서): 구간 개수의 구체적 값, 게이트의 정확한 함수형, expert당 학습 step. `design.md`는 "구간당 4K(TSM 기준)", "router = FC(z_t) + E(t)"라고 적고 있으나 논문 원문과 대조하지 않았다. 본문에서 인용하려면 원문 확인 필요.
 
 ### 2.2 Related Work 2.1 (효율적 파인튜닝)
 

@@ -1,4 +1,4 @@
-"""Timestep diagnostics for the per-interval t decision (draft §4, runbook step 2).
+"""Timestep diagnostics for the per-interval t decision (design §4, runbook step 2).
 
     python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml
     python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml \
@@ -16,9 +16,9 @@ anything here; the person reading them does:
 * ``ca_heatmap_<axis>_blocks.png`` — the same summed to block groups, for a
   coarse first look.
 * ``jaccard_matrix.png``     — t × t Jaccard of the top-``select.fraction`` sets on
-  ``select.axis`` (draft §4: block structure → interval boundaries).
+  ``select.axis`` (design §4: block structure → interval boundaries).
 * ``diagnosis.json``         — the numbers behind the figures plus, per t, the
-  split-half Jaccard (sampling stability, draft §4.3) and cross-axis Jaccard.
+  split-half Jaccard (sampling stability, design §4.3) and cross-axis Jaccard.
 * ``DECISION_TEMPLATE.md``   — every interval of every scheme with its measured
   candidate t and an empty ``decision:`` line.
 

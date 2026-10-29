@@ -1,0 +1,150 @@
+{
+  "run": "sdxl_c1",
+  "arm": "c1",
+  "bundle": "runs/sdxl_c1/bundles/n4-core-n4/bundle.safetensors",
+  "lora": null,
+  "routing": {
+    "sets": [
+      "n4"
+    ],
+    "core": "n4",
+    "disabled": [],
+    "router": null,
+    "experts": [
+      {
+        "name": "n4_i0",
+        "set": "n4",
+        "t_lo": 0,
+        "t_hi": 124,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "55e73f3c4b25e4fae337c4dab10aa32c8279e4dc560ccb95179fb8b250b897ab",
+        "steps": 4000,
+        "source": "runs/sdxl_c1/experts/n4_i0/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": 7.06939813238936,
+        "logsnr_hi": 1.8438816340346433
+      },
+      {
+        "name": "n4_i1",
+        "set": "n4",
+        "t_lo": 125,
+        "t_hi": 249,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "55e73f3c4b25e4fae337c4dab10aa32c8279e4dc560ccb95179fb8b250b897ab",
+        "steps": 4000,
+        "source": "runs/sdxl_c1/experts/n4_i1/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": 1.8326700712796313,
+        "logsnr_hi": 0.7328578110622648
+      },
+      {
+        "name": "n4_i2",
+        "set": "n4",
+        "t_lo": 250,
+        "t_hi": 499,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "55e73f3c4b25e4fae337c4dab10aa32c8279e4dc560ccb95179fb8b250b897ab",
+        "steps": 4000,
+        "source": "runs/sdxl_c1/experts/n4_i2/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": 0.7253876199930291,
+        "logsnr_hi": -0.9560515829672311
+      },
+      {
+        "name": "n4_i3",
+        "set": "n4",
+        "t_lo": 500,
+        "t_hi": 999,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "55e73f3c4b25e4fae337c4dab10aa32c8279e4dc560ccb95179fb8b250b897ab",
+        "steps": 4000,
+        "source": "runs/sdxl_c1/experts/n4_i3/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": -0.9627273430212699,
+        "logsnr_hi": -5.36404843867982
+      }
+    ]
+  },
+  "embedder": "clip",
+  "reportable": true,
+  "miou": null,
+  "protocol": {
+    "prompt": "photorealistic first-person urban street view",
+    "include_class_names": true,
+    "guidance_scale": 5.0,
+    "num_inference_steps": 25,
+    "scheduler": "EulerDiscreteScheduler",
+    "resolution": 1024,
+    "seed": 0,
+    "generation_batch_size": 4,
+    "weather_conditions": [
+      "foggy",
+      "night-time",
+      "rainy",
+      "snowy"
+    ],
+    "model": {
+      "class": "StableDiffusionXLAdapter",
+      "device": "cuda",
+      "dtype": "torch.float32",
+      "num_train_timesteps": 1000,
+      "prediction_type": "epsilon",
+      "scheduler": "EulerDiscreteScheduler",
+      "pipeline": "StableDiffusionXLPipeline",
+      "vae_scale_factor": 8,
+      "latent_channels": 4,
+      "scaling_factor": 0.13025,
+      "resolution": 1024
+    },
+    "clip_model": "openai/clip-vit-large-patch14",
+    "reference_split": "val",
+    "reference_num_images": 500,
+    "cmmd_sigma": 10.0,
+    "cmmd_scale": 1000.0
+  },
+  "num_images": 900,
+  "cmmd": {
+    "cmmd": 0.9663203086125449,
+    "num_reference": 500,
+    "num_generated": 500
+  },
+  "clip_score": {
+    "overall": {
+      "clip_score": 22.000680923461914,
+      "clip_score_std": 2.9754393100738525,
+      "num_pairs": 900
+    },
+    "per_condition": {
+      "foggy": {
+        "clip_score": 24.940942764282227,
+        "clip_score_std": 2.9012515544891357,
+        "num_pairs": 100
+      },
+      "in_domain": {
+        "clip_score": 22.332937240600586,
+        "clip_score_std": 2.252995729446411,
+        "num_pairs": 500
+      },
+      "night-time": {
+        "clip_score": 19.621780395507812,
+        "clip_score_std": 2.8194451332092285,
+        "num_pairs": 100
+      },
+      "rainy": {
+        "clip_score": 22.687938690185547,
+        "clip_score_std": 3.0274605751037598,
+        "num_pairs": 100
+      },
+      "snowy": {
+        "clip_score": 19.090808868408203,
+        "clip_score_std": 2.289358377456665,
+        "num_pairs": 100
+      }
+    },
+    "weather_mean": 21.585367679595947
+  }
+}

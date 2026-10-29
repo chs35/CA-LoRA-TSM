@@ -2,7 +2,7 @@
 
 > 작성: 2026-09-14, Fable 5.1. CPU에서 toy 파이프라인 4단계와 테스트 46개(35 통과 + GPU용 11 skip)를 확인한 상태에서
 > GPU pod에 붙는 에이전트가 따라야 할 순서. 각 단계의 **완료 조건**과 **보고 규칙**을 지킨다.
-> 근거 문서: `docs/draft.md`(연구 노트 v2), `docs/upstream/RUNBOOK_A100.md`, `docs/upstream/PROJECT_LOG.md`(실측 시간). 상위 저장소 `/workspace/Optimizing-CA-LoRA`는 그대로 있고(생성 이미지와 CMMD reference PNG만 2026-09-14에 삭제), 필요한 파일은 이 저장소로 복사돼 있다.
+> 근거 문서: `docs/design.md`(연구 노트 v2), `docs/upstream/RUNBOOK_A100.md`, `docs/upstream/PROJECT_LOG.md`(실측 시간). 상위 저장소 `/workspace/Optimizing-CA-LoRA`는 그대로 있고(생성 이미지와 CMMD reference PNG만 2026-09-14에 삭제), 필요한 파일은 이 저장소로 복사돼 있다.
 
 ## 준비 상태 요약 (CPU pod에서 확인, 2026-09-14)
 
@@ -69,7 +69,7 @@ CATSM_SDXL_SMOKE=1 python -m pytest tests/test_gpu.py -q -k sdxl -p no:cacheprov
 ## 1단계 — CA 측정 (미리 정한 t 후보)
 
 **후보 t (config `measure.timesteps`):** 1, 41, **61**, 81, 125, 201, 250, 375, 500, 750, 999 — 2026-09-14에 config에 61을 추가해 두었다.
-draft §4의 13점 중 625·875는 블록 구조가 불명확할 때만 추가.
+design §4의 13점 중 625·875는 블록 구조가 불명확할 때만 추가.
 
 **재사용 여부(사용자 결정 필요).** 기존 측정 13개는 같은 이미지·노이즈·seed로 만들어졌으므로 그대로 pairing이 성립한다. 이전 import 세션에서 측정 파일은 "필요 없음"으로 제외됐지만, 복사 한 번이면 t=121·301·401·481·601·701·801·901·981이 진단(Jaccard 행렬)에 공짜로 들어오고 측정 시간이 약 14시간(11개 전부)에서 약 9시간(7개)으로 준다. 전부 새로 재려면 아래에서 `cp`를 빼고 `--skip-existing`도 뺀다.
 
@@ -106,13 +106,13 @@ python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml            #
 - `ca_distribution.png`: t마다 style-CA와 viewpoint-CA의 정규화 분포 히스토그램(log 스케일). 원 논문이 t=81을 고른 근거인 "두 개념의 분포 차이"를 그대로 보는 그림.
 - `ca_heatmap_<axis>_layers.png` / `_layers_shared.png`: attention layer(140행) × {q,k,v,out} 정규화 CA, t당 한 패널(논문 Fig. 11 배치). 패널별 스케일과 t 간 공유 스케일 두 벌.
 - `ca_heatmap_<axis>_blocks.png`: 같은 것을 block 그룹(down1/down2/up0/up1/mid)으로 합친 거친 판.
-- `jaccard_matrix.png`: top-2% 집합의 t × t Jaccard(draft §4: 집합이 급변하는 t가 자연스러운 경계).
-- `DECISION_TEMPLATE.md`: scheme별·구간별 후보 t와 빈 `decision:` 줄. 참고 수치로 split-half Jaccard(샘플링 안정성, draft §4.3)와 t=81 집합과의 Jaccard만 적혀 있다.
+- `jaccard_matrix.png`: top-2% 집합의 t × t Jaccard(design §4: 집합이 급변하는 t가 자연스러운 경계).
+- `DECISION_TEMPLATE.md`: scheme별·구간별 후보 t와 빈 `decision:` 줄. 참고 수치로 split-half Jaccard(샘플링 안정성, design §4.3)와 t=81 집합과의 Jaccard만 적혀 있다.
 
 CPU pod에서 기존 13개 t로 미리 돌린 결과(`diagnosis.json`)에서 결정에 참고할 사실만 적는다:
 - [0,61]: t=1의 split-half Jaccard 0.857(전체 최고), t=41은 0.684. 61은 아직 측정 전.
 - [125,249]: 기존 측정에는 201만 속한다(121은 [62,124]). 125를 재야 경합이 성립한다.
-- t≥601의 top-2% 집합은 81의 집합과 Jaccard 0.03~0.05로 거의 겹치지 않고, t=401~701의 split-half Jaccard는 0.33~0.47로 **집합의 절반 가량이 샘플링 노이즈**다. draft §3.4의 우려(높은 구간 선택 불안정 → random-sliced/미적용/C2 검토)가 데이터로 확인된 셈이므로 결정 보고에 포함한다.
+- t≥601의 top-2% 집합은 81의 집합과 Jaccard 0.03~0.05로 거의 겹치지 않고, t=401~701의 split-half Jaccard는 0.33~0.47로 **집합의 절반 가량이 샘플링 노이즈**다. design §3.4의 우려(높은 구간 선택 불안정 → random-sliced/미적용/C2 검토)가 데이터로 확인된 셈이므로 결정 보고에 포함한다.
 
 **이미 확정된 것(사용자 지시):**
 
@@ -159,7 +159,7 @@ python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml            #
 - `ca_heatmap_*`의 행은 block 그룹(down1/down2/up0/up1/mid, 각 그룹의 attention layer를 합산)이라 논문 Fig. 11(layer별)보다 거칠다. 논문식 layer별 패널이 필요하면 `diagnose_ca.py`의 `block_kind_table`을 `group_indices("block_id")` 대신 attention 모듈 단위로 바꾸면 된다(측정 파일 재사용, 재측정 불필요).
 - [0,61]: t=1은 split-half 0.857(전체 최고)·KLD 0.0165, t=41은 0.684·0.0112. 61은 아직 측정 전.
 - [125,249]: 기존 측정에는 201만 속한다(121은 [62,124]). 125를 재야 경합이 성립한다.
-- t≥601의 선택 집합은 81의 집합과 Jaccard 0.03~0.05로 거의 겹치지 않고, t=401~701의 split-half Jaccard는 0.33~0.47로 **top-2% 집합의 절반 가량이 샘플링 노이즈**다. draft §3.4의 우려(높은 구간 선택 불안정 → random-sliced 또는 미적용 검토, C2)가 데이터로 확인된 셈이므로 결정 보고에 포함한다.
+- t≥601의 선택 집합은 81의 집합과 Jaccard 0.03~0.05로 거의 겹치지 않고, t=401~701의 split-half Jaccard는 0.33~0.47로 **top-2% 집합의 절반 가량이 샘플링 노이즈**다. design §3.4의 우려(높은 구간 선택 불안정 → random-sliced 또는 미적용 검토, C2)가 데이터로 확인된 셈이므로 결정 보고에 포함한다.
 
 **결정 완료(2026-09-15, 사용자):** n3 [81, 375, 750], n4 [81, 201, 375, 750], n5 [41, 81, 201, 375, 750]; 경계는 절반 자르기 그대로. 근거와 sha는 `runs/sdxl_cityscapes/diagnosis/DECISION.md`. config는 `interval_select.mode: representative`로 바뀌었고 `selections/n3,n4,n5/`가 생성됨.
 
@@ -205,8 +205,8 @@ nohup python -m catsm.cli foster --config $CFG --expert n1_i0 > runs/sdxl_citysc
 
 - 설정: rank 64, alpha 64, 4K step, batch 1, lr 1e-4, fp32, gradient checkpointing, checkpoint 1000 step마다.
 - 실측 속도(상위 저장소, 같은 조건 10K step): **2.54 s/step → expert당 약 2.8시간.** 8개 ≈ 22시간, n3·n5까지 16개 ≈ 45시간.
-- 강건성 sweep(draft §5.3, 여유 시): `foster --expert n1_i0 --selection runs/sdxl_cityscapes/selections/n1/n1_i0_t0041.json --name sdxl_sweep_t41` 식으로 선택 파일만 바꿔 별도 run에 학습한다(t=1, 41, 201 파일이 이미 있음).
-- viewpoint 축 실험은 `--name sdxl_cityscapes_viewpoint --set select.axis=viewpoint`로 run dir를 분리한다(draft의 주 실험은 style).
+- 강건성 sweep(design §5.3, 여유 시): `foster --expert n1_i0 --selection runs/sdxl_cityscapes/selections/n1/n1_i0_t0041.json --name sdxl_sweep_t41` 식으로 선택 파일만 바꿔 별도 run에 학습한다(t=1, 41, 201 파일이 이미 있음).
+- viewpoint 축 실험은 `--name sdxl_cityscapes_viewpoint --set select.axis=viewpoint`로 run dir를 분리한다(design 문서의 주 실험은 style).
 - 동시 실행: **하지 않는다(2026-09-15 실측).** 단독 fostering은 VRAM 14.5 GB, 1.08 s/step(4K step ≈ 72분, 상위 저장소의 2.54 s/step보다 빠름)이지만 GPU 사용률이 이미 100%라, 두 개를 병렬로 돌리면 각각 2.36 s/step → 합산 1.18 s/step으로 순차보다 9% 느리다. 큐는 하나만 돌린다(`scripts/foster_queue.sh`).
 - 각 expert 종료 시 확인: `train_summary.json`의 `t_min_seen/t_max_seen`이 구간 안, loss 유한, `lora-final.safetensors` 재로드(`catsm.train.assemble.load_expert_into`로 pristine UNet에 붙여보기 — 4단계가 어차피 한다).
 
@@ -231,7 +231,7 @@ nohup python -m catsm.cli foster --config $CFG --expert n1_i0 > runs/sdxl_citysc
 > **상태(2026-09-19 20:17 KST): 5단계 완료.** 주 구성 10개(No.1~No.9, C1) + C2 2개(c2n2, c2n3) 생성·평가 끝, 집계표 `runs/results_table.md`. GPU 유휴. 다음: 6단계 `docs/RESULTS.md`; 선택 GPU 작업(seed 반복, 강건성 sweep)은 사용자 결정 대기.
 > **상태(2026-09-17 13:46 KST): 4단계 완료.** 번들 10개(하드 3 + 라우터 7, batch 8, 각 127~140분, 총 16 h 13 min) 전부 점검 이상 없음. paired loss 18회 완료, No.3 라우터 번들 생성 스모크 통과. 사용자 지시로 5단계 자동 진입을 막고 중간 점검 보고서 `docs/INTERIM_REPORT_2026-09-17_stage4.md`를 작성했다. **5단계는 사용자 승인(09-17 16:38 KST)으로 `scripts/stage5_eval_queue.sh no1 no2 no3 c1 no4 no5 no6 no7 no8 no9`를 띄워 진행 중이다** (로그 `runs/sdxl_cityscapes/logs/eval_queue.out`, `gen_<arm>.out`, `eval_<arm>.out`; PID는 `pgrep -f stage5_eval_queue`).
 
-주논지 구성(draft §5.1) 순서: **No.1 → No.2 → No.3 → C1**, 그 뒤 No.4~No.9(전부, 사용자 결정 2026-09-16), C2는 최종 구성 확정 후.
+주논지 구성(design §5.1) 순서: **No.1 → No.2 → No.3 → C1**, 그 뒤 No.4~No.9(전부, 사용자 결정 2026-09-16), C2는 최종 구성 확정 후.
 
 ```bash
 nohup scripts/stage4_assemble_queue.sh no1 no2 c1 no3 > runs/sdxl_cityscapes/logs/assemble_queue.out 2>&1 &   # 주논지 4개
@@ -287,9 +287,9 @@ python scripts/evaluate.py --config $CFG --run-name no3                         
 
 - 첫 SDXL 생성 전에 `SMOKE=1 scripts/stage5_eval_queue.sh no1`로 한 번 돌려 `gate_hook_calls`가 `num_inference_steps × 배치 수`(6장 = 배치 2 → 50)인지 확인한다. 2026-09-16 스모크에서 50 확인.
 - `--embedder pixel`은 배관 확인용이며 그 수치는 보고하지 않는다.
-- **mIoU는 미진행**(Improving CA-LoRA와 동일, 사용자 확정). `eval.json`의 `miou`는 항상 null이며 draft §8의 "CMMD와 mIoU 함께 보고"는 CMMD + weather CLIP-Score로 대체하고 리포트에 명시한다.
+- **mIoU는 미진행**(Improving CA-LoRA와 동일, 사용자 확정). `eval.json`의 `miou`는 항상 null이며 design §8의 "CMMD와 mIoU 함께 보고"는 CMMD + weather CLIP-Score로 대체하고 리포트에 명시한다.
 
-**프로토콜(draft §8):**
+**프로토콜(design §8):**
 - 스크리닝: 시드 1개, 구성별 in_domain 500장 + weather 4조건 × 100장. 실측 생성 속도 1024 px 25 step ≈ 1.2 s/it → **구성당 약 7.5시간**. 시간이 없으면 스크리닝은 in_domain 200 + weather 4×50으로 줄이고 그 사실을 기록한다.
 - 생성 seed는 구성 간 공유(paired). `eval.num_inference_steps=25`, `guidance_scale=5.0` 고정·명시.
 - 상위 2~3개 + No.1은 시드 3개(생성 seed만; LoRA 학습 seed는 고정).
@@ -301,10 +301,10 @@ python scripts/evaluate.py --config $CFG --run-name no3                         
 
 `docs/RESULTS.md`에 다음을 표로 정리한다.
 1. 진단: t별 KLD, Jaccard 행렬, 구간별 대표 t 결정 근거.
-2. 구성표(draft §5.1 No.1/2/3/C1 + 추가분): expert 수, 명목 파라미터 합(13×2% 상한), timestep당 활성 비율(m×2%), fostering 시간, assembling 시간.
+2. 구성표(design §5.1 No.1/2/3/C1 + 추가분): expert 수, 명목 파라미터 합(13×2% 상한), timestep당 활성 비율(m×2%), fostering 시간, assembling 시간.
 3. 평가: 구성별 CMMD / weather CLIP-Score(조건별) / in_domain CLIP-Score, 시드 3개 구성은 평균±std.
 4. router 분석: No.3의 모듈별 gate 평균·부호 분포(t 구간별) — context expert가 어디서 억제/증폭되는지.
-5. draft §5.2 시나리오 중 어디에 해당하는지, 특히 **C1 ≈ 최고 구성이면 2절 주장 기각**임을 명시.
+5. design §5.2 시나리오 중 어디에 해당하는지, 특히 **C1 ≈ 최고 구성이면 2절 주장 기각**임을 명시.
 6. 실행 로그: 각 단계 실제 소요 시간, 오류·재시작 이력, 프로토콜에서 벗어난 결정(이미지 수 축소 등).
 
 ---

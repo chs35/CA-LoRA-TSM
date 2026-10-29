@@ -2,7 +2,7 @@
 # Stage 4 (assembling) queue: builds bundles one after another by configuration name.
 #   scripts/stage4_assemble_queue.sh no1 no2 c1 no3            # main claim (docs/GPU_RUNBOOK.md §4)
 #   scripts/stage4_assemble_queue.sh no4 no5 no6 no7 no8 no9   # every other m>1 scenario (user decision 2026-09-16)
-# Names (draft §5.1): no1 = n1 (CA-LoRA 4K baseline, hard), no2 = n4 hard, c1 = C1 (run sdxl_c1, n4 hard),
+# Names (design §5.1): no1 = n1 (CA-LoRA 4K baseline, hard), no2 = n4 hard, c1 = C1 (run sdxl_c1, n4 hard),
 #   no3 = n1+n4, no4 = n1+n3+n4, no5 = n1+n4+n5, no6 = n3+n4+n5, no8 = n1+n3+n4+n5 (core n4),
 #   no7 = n1+n4+n5 core n5, no9 = n1+n3+n4+n5 core n5,
 #   c2 = no3 with n4_i3 disabled (router retrained), c2n2 = no2 with n4_i3 disabled (hard, no training) — C2 controls (2026-09-19).

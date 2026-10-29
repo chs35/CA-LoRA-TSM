@@ -129,3 +129,30 @@ def test_generate_and_evaluate_end_to_end(generate_images, evaluate, routed_bund
     assert set(report["clip_score"]["per_condition"]) == {"in_domain", "foggy"}
     assert report["routing"]["core"] == "n2" and report["bundle"] == str(routed_bundle)
     assert (run_dir / "reference" / "00003.png").exists()
+
+
+def test_make_results_row_reads_routing_and_weather_sem():
+    make_results = load_script("make_results")
+    cond = {c: {"clip_score": 20.0 + i, "clip_score_std": 2.0, "num_pairs": 100}
+            for i, c in enumerate(make_results.CONDITIONS)}
+    cond["in_domain"] = {"clip_score": 22.0, "clip_score_std": 2.0, "num_pairs": 500}
+    d = {"routing": {"sets": ["n1", "n4"], "core": "n4", "disabled": ["n4_i3"], "router": {"type": "x"},
+                     "experts": [{"name": n} for n in ("n1_i0", "n4_i0", "n4_i1", "n4_i2", "n4_i3")]},
+         "protocol": {"seed": 0}, "num_images": 900, "cmmd": {"cmmd": 1.0},
+         "clip_score": {"per_condition": cond, "weather_mean": 21.5}}
+    r = make_results.row_from_eval("c2", d, label="C2", desc="", group="control")
+    assert (r["routing"], r["n_experts"], r["nominal_head_pct"], r["active_head_pct_per_t"]) == ("router", 5, 10.0, 4.0)
+    assert r["active_note"] == "2% on [500,999]" and r["fostering_steps_total"] == 20000 and r["router_steps"] == 1000
+    assert r["clip_weather_sem"] == pytest.approx((4 * 4 / 100) ** 0.5 / 4)   # sqrt(sum s^2/n) / 4
+
+
+def test_router_gate_helpers_pick_active_expert_and_scaled_delta_norm():
+    rg = load_script("router_gate_vs_t")
+    meta = {"experts": [{"name": "a0", "set": "a", "t_lo": 0, "t_hi": 499, "rank": 2, "alpha": 4.0},
+                        {"name": "a1", "set": "a", "t_lo": 500, "t_hi": 999, "rank": 2, "alpha": 4.0}]}
+    assert rg.active_expert(meta, "a", 499) == "a0" and rg.active_expert(meta, "a", 500) == "a1"
+    A, B = torch.randn(2, 3), torch.randn(5, 2)
+    state = {"m.experts.a0.lora_A": A, "m.experts.a0.lora_B": B}
+    norms = rg.delta_norms(state, meta, ["m", "other"])
+    assert norms["a0"][0].item() == pytest.approx(2.0 * float((B.double() @ A.double()).norm()))
+    assert norms["a0"][1].item() == 0.0 and norms["a1"].tolist() == [0.0, 0.0]

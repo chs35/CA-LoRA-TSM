@@ -1,4 +1,4 @@
-"""Assembling-stage routing (draft §3.2 step 4).
+"""Assembling-stage routing (design §3.2 step 4).
 
 At timestep ``t`` every expert set contributes exactly one expert — the one
 whose interval contains ``t``. The finest set (``core``) enters with weight 1;
@@ -116,7 +116,7 @@ class RoutingTable:
         self._lookup = {
             name: scheme.lookup(num_train_timesteps) for name, scheme in self.schemes.items()
         }
-        #: Experts whose weight is forced to 0 at every t (draft §5.1 control C2:
+        #: Experts whose weight is forced to 0 at every t (design §5.1 control C2:
         #: "high-interval expert disabled"). Their interval is then covered by
         #: whatever other sets are active there, or by the base model alone.
         unknown = sorted(set(disabled) - set(self.expert_names))

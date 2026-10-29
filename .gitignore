@@ -6,3 +6,9 @@ __pycache__/
 
 .venv/
 .claude/
+
+# large artifacts never belong in git (they live under runs/ or on the Hub)
+*.safetensors
+*.ckpt
+*.pt
+**/generated/
