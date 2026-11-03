@@ -131,6 +131,23 @@ def seconds_per_step(log: Path) -> float | None:
     return float(found[-1]) if found else None
 
 
+def generation_seconds_per_image(log: Path) -> float:
+    """Wall time between the first and last ``generate_images |   k/n`` lines, per image.
+
+    Model loading dominates a run this short, so the total wall time overstates the rate,
+    and a progress bar's own rate does not say how many images its batch held.
+    """
+    stamps = [
+        (int(h) * 3600 + int(m) * 60 + int(s), int(done))
+        for h, m, s, done in re.findall(r"^(\d+):(\d+):(\d+) \| INFO\s+\| generate_images \|\s+(\d+)/\d+\s*$",
+                                        log.read_text(errors="replace").replace("\r", "\n"), re.M)
+    ]
+    if len(stamps) < 2:
+        raise RuntimeError(f"fewer than two progress lines in {log}: cannot time generation")
+    (t0, n0), (t1, n1) = stamps[0], stamps[-1]
+    return ((t1 - t0) % 86400) / (n1 - n0)
+
+
 def check_in_process(cfg, gate_dir: Path) -> dict:
     """Flags, dtypes, the 10 images and the tensor-core share, on real fostering steps."""
     from torch.profiler import ProfilerActivity, profile, schedule
@@ -212,15 +229,7 @@ def main() -> int:
          "--set", f"eval.num_images={GATE_IMAGES}", "eval.images_per_condition=1"],
         generation,
     )
-    images = GATE_IMAGES + 4 * 1
-    # Model loading dominates a run this short, so read the per-batch rate off the progress bars.
-    bars = re.findall(r"25/25 \[\d+:\d+<\d+:\d+,\s*([0-9.]+)(it/s|s/it)", generation.read_text(errors="replace"))
-    if bars:
-        value, unit = float(bars[-1][0]), bars[-1][1]
-        per_batch = 25 / value if unit == "it/s" else 25 * value
-    else:
-        per_batch = report["generate"]["seconds"] / max(images / 4, 1)
-    seconds_per_image = per_batch / cfg.eval.generation_batch_size
+    seconds_per_image = generation_seconds_per_image(generation)
     report["generate"]["seconds_per_image"] = seconds_per_image
 
     report["estimates"] = {
