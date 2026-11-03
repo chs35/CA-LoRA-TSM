@@ -23,7 +23,7 @@ from typing import Sequence
 import torch
 
 from calora.data.prompts import PromptAugmenter
-from calora.data.transforms import CROP_MODES, load_image
+from calora.data.transforms import CROP_MODES, load_full_frame, load_image
 from calora.utils.io import load_json
 from calora.utils.logging import get_logger
 from calora.utils.seeding import derive_generator
@@ -204,6 +204,18 @@ class CityscapesConceptDataset(Sequence):
             return self._captions[entry.key]
         return self.caption_template.format(city=entry.city.replace("_", " "), key=entry.key)
 
+    def restrict(self, indices: Sequence[int]) -> None:
+        """Keep only these items, re-indexed from 0 (see ``apply_training_subset``)."""
+        self.entries = [self.entries[index] for index in indices]
+
+    def item_keys(self) -> list[str]:
+        """Each item's frame key, read off metadata — no image is decoded."""
+        return [entry.key for entry in self.entries]
+
+    def caption_at(self, index: int) -> str:
+        """Item ``index``'s caption, read off metadata — no image is decoded."""
+        return self.caption_for(self.entries[index])
+
     def distinct_captions(self) -> list[str]:
         """Every caption this dataset can yield, without decoding a single image.
 
@@ -247,6 +259,17 @@ class CityscapesConceptDataset(Sequence):
             "image_path": str(entry.image_path),
             "label_path": None if entry.label_path is None else str(entry.label_path),
         }
+
+    def full_frame(self, index: int) -> torch.Tensor:
+        """The resized, *uncropped* frame behind ``index`` (``[3,R,W]``).
+
+        What training's latent cache encodes when ``crop="random"``: the random
+        window is then taken in latent space, per step, by the training loop.
+        A pure function of the index — it draws no crop and leaves
+        ``_crop_draws`` alone, so it can be called from worker threads and in
+        any order.
+        """
+        return load_full_frame(self.entries[index].image_path, self.resolution)
 
     def collate_paths(self) -> list[str]:
         return [str(e.image_path) for e in self.entries]

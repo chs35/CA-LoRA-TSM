@@ -23,6 +23,7 @@ __all__ = [
     "ConceptAxis",
     "DummyConceptDataset",
     "PromptAugmenter",
+    "apply_training_subset",
     "build_augmenter",
     "build_dataset",
     "extract_class_names",
@@ -103,6 +104,32 @@ def build_dataset(
             seed=seed,
         )
     raise ValueError(f"Unknown data.kind {cfg.kind!r}; expected 'dummy' or 'cityscapes'")
+
+
+def apply_training_subset(dataset, size: int, *, seed: int = 0) -> dict:
+    """Restrict ``dataset`` to ``size`` randomly drawn items; return what was drawn.
+
+    Only ever called on the dataset the training loop reads. The draw depends on
+    the split's size and ``seed`` alone, so every arm of a run gets the same images
+    and the returned record can be compared across arms.
+    """
+    total = len(dataset)
+    if not 1 <= size <= total:
+        raise ValueError(f"train.subset_size must be in [1, {total}], got {size}")
+    generator = derive_generator(seed, "train-subset")
+    indices = sorted(torch.randperm(total, generator=generator)[:size].tolist())
+    dataset.restrict(indices)
+    record = {
+        "size": size,
+        "seed": seed,
+        "source_size": total,
+        "indices": indices,
+        "keys": dataset.item_keys(),
+    }
+    lister = getattr(dataset, "collate_paths", None)
+    if callable(lister):
+        record["image_paths"] = lister()
+    return record
 
 
 class ClassNameSampler:

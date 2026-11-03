@@ -14,23 +14,27 @@ set -u
 cd "$(dirname "$0")/.."
 source scripts/env.sh
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-16} MKL_NUM_THREADS=${MKL_NUM_THREADS:-16}
-CFG=configs/sdxl_cityscapes.yaml
+CFG=${CFG:-configs/sdxl_cityscapes.yaml}
+RUN=${RUN:-sdxl_cityscapes}
+RUN_C1=${RUN_C1:-sdxl_c1}
+# Extra `--set` overrides for router training, e.g. ASSEMBLE_SET="model.enable_gradient_checkpointing=true".
+ASSEMBLE_SET=${ASSEMBLE_SET:-}
 now() { TZ=Asia/Seoul date '+%F %T KST'; }
 
 spec() {  # name -> "run|bundle-dir|assemble args"
   case "$1" in
-    no1) echo "sdxl_cityscapes|n1-core-n1|--sets n1 --core n1 --no-router" ;;
-    no2) echo "sdxl_cityscapes|n4-core-n4|--sets n4 --core n4 --no-router" ;;
-    c1)  echo "sdxl_c1|n4-core-n4|--sets n4 --core n4 --no-router" ;;
-    no3) echo "sdxl_cityscapes|n1+n4-core-n4|--sets n1 n4 --core n4" ;;
-    no4) echo "sdxl_cityscapes|n1+n3+n4-core-n4|--sets n1 n3 n4 --core n4" ;;
-    no5) echo "sdxl_cityscapes|n1+n4+n5-core-n4|--sets n1 n4 n5 --core n4" ;;
-    no6) echo "sdxl_cityscapes|n3+n4+n5-core-n4|--sets n3 n4 n5 --core n4" ;;
-    no7) echo "sdxl_cityscapes|n1+n4+n5-core-n5|--sets n1 n4 n5 --core n5" ;;
-    no8) echo "sdxl_cityscapes|n1+n3+n4+n5-core-n4|--sets n1 n3 n4 n5 --core n4" ;;
-    no9) echo "sdxl_cityscapes|n1+n3+n4+n5-core-n5|--sets n1 n3 n4 n5 --core n5" ;;
-    c2|c2n3) echo "sdxl_cityscapes|n1+n4-core-n4-disable-n4_i3|--sets n1 n4 --core n4 --disable n4_i3" ;;   # C2 on No.3 (alias c2n3)
-    c2n2) echo "sdxl_cityscapes|n4-core-n4-disable-n4_i3|--sets n4 --core n4 --no-router --disable n4_i3" ;;   # C2 on No.2: [500,999] = base model only
+    no1) echo "$RUN|n1-core-n1|--sets n1 --core n1 --no-router" ;;
+    no2) echo "$RUN|n4-core-n4|--sets n4 --core n4 --no-router" ;;
+    c1)  echo "$RUN_C1|n4-core-n4|--sets n4 --core n4 --no-router" ;;
+    no3) echo "$RUN|n1+n4-core-n4|--sets n1 n4 --core n4" ;;
+    no4) echo "$RUN|n1+n3+n4-core-n4|--sets n1 n3 n4 --core n4" ;;
+    no5) echo "$RUN|n1+n4+n5-core-n4|--sets n1 n4 n5 --core n4" ;;
+    no6) echo "$RUN|n3+n4+n5-core-n4|--sets n3 n4 n5 --core n4" ;;
+    no7) echo "$RUN|n1+n4+n5-core-n5|--sets n1 n4 n5 --core n5" ;;
+    no8) echo "$RUN|n1+n3+n4+n5-core-n4|--sets n1 n3 n4 n5 --core n4" ;;
+    no9) echo "$RUN|n1+n3+n4+n5-core-n5|--sets n1 n3 n4 n5 --core n5" ;;
+    c2|c2n3) echo "$RUN|n1+n4-core-n4-disable-n4_i3|--sets n1 n4 --core n4 --disable n4_i3" ;;   # C2 on No.3 (alias c2n3)
+    c2n2) echo "$RUN|n4-core-n4-disable-n4_i3|--sets n4 --core n4 --no-router --disable n4_i3" ;;   # C2 on No.2: [500,999] = base model only
     *)   return 1 ;;
   esac
 }
@@ -45,7 +49,7 @@ for name in "$@"; do
   else
     echo "[$(now)] start $name: assemble --name $run $args"
     # shellcheck disable=SC2086
-    python -m catsm.cli assemble --config $CFG --name $run $args > runs/$run/logs/assemble_$name.out 2>&1
+    python -m catsm.cli assemble --config $CFG --name $run $args ${ASSEMBLE_SET:+--set $ASSEMBLE_SET} > runs/$run/logs/assemble_$name.out 2>&1
     rc=$?
     echo "[$(now)] end $name rc=$rc"
     [ $rc -ne 0 ] && { tail -5 runs/$run/logs/assemble_$name.out; echo "QUEUE ABORTED at $name"; exit $rc; }

@@ -46,6 +46,19 @@ def load_image(
         return to_tensor(random_crop(resized, resolution, generator=generator))
 
 
+def load_full_frame(path: str | Path, resolution: int) -> torch.Tensor:
+    """The frame :func:`load_image` crops from: resized on the short side, uncropped.
+
+    ``[3,resolution,W]`` for a landscape frame (``[3,1024,2048]`` for Cityscapes
+    at 1024px), in ``[-1,1]``. Every crop :func:`load_image` can return is a
+    window of this tensor, which is what lets training encode it once and take
+    ``crop="random"`` windows in latent space instead of re-encoding per step
+    (:class:`calora.train.lora._InputCache`).
+    """
+    with Image.open(path) as img:
+        return to_tensor(resize_short_side(img.convert("RGB"), resolution))
+
+
 def resize_short_side(img: Image.Image, size: int) -> Image.Image:
     width, height = img.size
     scale = size / min(width, height)

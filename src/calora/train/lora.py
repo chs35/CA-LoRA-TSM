@@ -14,18 +14,27 @@ set stays valid.
 The two non-obvious pieces of the loop are :class:`_InputCache` (the VAE and
 text encoders run once, not once per step) and
 :func:`resolve_mixed_precision` (autocast around the forward, fp32 everywhere
-that holds state). Neither changes the optimisation; both exist because a 10k
-step arm is run once per ablation and there are several ablations.
+that holds state). Both exist because a 10k step arm is run once per ablation
+and there are several ablations. Neither changes the optimisation problem;
+their numeric footprints (bf16 rounding in the forward, latent-space random
+crops) are documented where they are implemented.
+
+Wall-clock time is split into optimisation and callbacks
+(:attr:`TrainingState.train_elapsed` / :attr:`TrainingState.callback_elapsed`):
+a CA-drift snapshot is a full CA measurement, and folding it into s/step made
+the step time of drift-tracking runs incomparable with runs that do not track.
 """
 
 from __future__ import annotations
 
 import contextlib
+import itertools
 import math
 import queue
 import threading
 import time
-from collections.abc import Iterator, Mapping, Sequence
+from collections import deque
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -39,6 +48,7 @@ from calora.data.transforms import hflip
 from calora.models.adapter import Conditioning, DenoiserAdapter
 from calora.models.projections import ProjectionTable, head_unit_name
 from calora.models.sliced_lora import HeadLoraPlan, attach_sliced_lora, has_sliced_lora
+from calora.train.latent_store import LatentStore
 from calora.utils.logging import get_logger
 from calora.utils.seeding import derive_generator, seed_everything
 
@@ -62,9 +72,19 @@ class TrainingState:
     step: int
     loss: float
     learning_rate: float
+    #: Wall clock since the loop started, everything included.
     elapsed: float
     adapter: DenoiserAdapter | None = None
     history: list[dict] = field(default_factory=list)
+    #: Time spent inside step callbacks (CA-drift snapshots), and the rest of
+    #: ``elapsed`` — the optimisation steps plus checkpoint writes. The two sum
+    #: to ``elapsed``; the split is what makes s/step comparable between a
+    #: drift-tracking run and a clean one.
+    callback_elapsed: float = 0.0
+
+    @property
+    def train_elapsed(self) -> float:
+        return max(self.elapsed - self.callback_elapsed, 0.0)
 
     def to_dict(self) -> dict:
         return {
@@ -72,6 +92,8 @@ class TrainingState:
             "loss": self.loss,
             "learning_rate": self.learning_rate,
             "elapsed": self.elapsed,
+            "train_elapsed": self.train_elapsed,
+            "callback_elapsed": self.callback_elapsed,
         }
 
 
@@ -547,17 +569,32 @@ class _InputCache:
 
     * **Captions** are cached unconditionally, keyed by the caption string.
       Conditioning tensors are kept on CPU and moved per step.
-    * **Latents** are pre-computed for the whole dataset only when
-      ``__getitem__`` is deterministic. They are the reason ``crop="random"``
-      and ``cache_latents`` are mutually exclusive: with a random crop the image
-      behind an index is different on every read, so a cache would silently pin
-      training to whatever crop happened to be drawn first.
+    * **Latents, ``crop="center"``**: ``__getitem__`` is deterministic, so each
+      item's latent is computed once and is *exactly* what the per-step path
+      would have encoded (the VAE takes the distribution mode).
+    * **Latents, ``crop="random"``**: the image behind an index changes on
+      every read, so caching ``dataset[i]`` would pin training to whichever crop
+      was drawn first. Instead the resized, *uncropped* frame is encoded once
+      (``[4,128,256]`` for a 2048x1024 Cityscapes frame at 1024px) and each step
+      takes a random ``crop_size`` window of it in latent space — the same
+      horizontal slide :func:`calora.data.transforms.random_crop` does in pixels,
+      at the VAE's 8px granularity (129 window positions instead of 1025). This
+      is an approximation, not an identity: the SDXL VAE is a stack of
+      convolutions, so latents near a window edge have seen a few pixels from
+      outside the window that a crop-then-encode would have padded instead.
+      That is the standard trade in latent-diffusion fine-tuning and it is why
+      this path is recorded in the run log rather than silently equated with
+      the per-step encode.
     * **Both orientations** are cached when the dataset allows a horizontal
       flip. ``VAE(flip(x)) != flip(VAE(x))``, so the mirrored latent has to come
       from a second encode of the mirrored *pixels*; flipping the cached tensor
-      would be cheaper and wrong. The cost is one extra encode per image and
-      double the cache, which is why ``data.hflip`` is opt-in.
+      would be cheaper and wrong. With a full-frame cache the flipped step reads
+      the mirrored window of the mirrored frame, which covers the same pixels
+      as "crop, then flip".
     """
+
+    #: Threads decoding PNGs while the GPU encodes. Order is preserved.
+    DECODE_WORKERS = 4
 
     def __init__(self, adapter: DenoiserAdapter):
         self._adapter = adapter
@@ -567,41 +604,161 @@ class _InputCache:
         #: Same images encoded mirrored, or ``None`` when ``data.hflip`` is off.
         self.latents_flipped: list[torch.Tensor] | None = None
         self.captions: list[str] | None = None
+        #: Side of the square latent window cut per step, when the cache holds
+        #: uncropped frames (``crop="random"``); ``None`` for a centre-crop cache.
+        self.crop_size: int | None = None
 
-    def precompute_latents(self, dataset: Sequence[dict], *, with_hflip: bool = False) -> None:
-        """Encode every image once per orientation, into CPU fp32 tensors.
+    def precompute_latents(
+        self,
+        dataset: Sequence[dict],
+        *,
+        with_hflip: bool = False,
+        store: LatentStore | None = None,
+    ) -> None:
+        """Encode every (centre-cropped) item once per orientation, into CPU fp32.
 
         Encoded one image at a time so the cached value is exactly what the
         uncached path would have produced for a batch containing it; the VAE
         takes the distribution *mode*, so this is deterministic.
+
+        The on-disk ``store`` is only used for a dataset that can name an item's
+        caption without decoding it (``caption_at``): on a store hit nothing else
+        would read the items, and the captions still have to come from somewhere.
         """
-        latents: list[torch.Tensor] = []
-        flipped: list[torch.Tensor] = []
-        captions: list[str] = []
-        started = time.perf_counter()
-        for index in range(len(dataset)):
+        caption_at = _caption_accessor(dataset)
+
+        def read(index: int) -> tuple[torch.Tensor, str]:
             item = dataset[index]
-            image = item["image"]
-            if image.ndim == 3:
-                image = image.unsqueeze(0)
-            latents.append(self._adapter.encode_images(image).detach().to("cpu", torch.float32))
-            if with_hflip:
-                flipped.append(
-                    self._adapter.encode_images(hflip(image)).detach().to("cpu", torch.float32)
-                )
-            captions.append(item["caption"])
-        self.latents = latents
-        self.latents_flipped = flipped if with_hflip else None
-        self.captions = captions
-        total = sum(t.numel() for t in latents) * 4 * (2 if with_hflip else 1)
+            return item["image"], item["caption"]
+
+        self._fill(
+            "center",
+            read,
+            len(dataset),
+            caption_at=caption_at,
+            with_hflip=with_hflip,
+            store=store if caption_at is not None else None,
+            parallel=False,  # dataset[i] is not promised to be thread-safe
+        )
+
+    def precompute_full_frame_latents(
+        self,
+        dataset: Sequence[dict],
+        *,
+        crop_size: int,
+        vae_scale_factor: int,
+        with_hflip: bool = False,
+        store: LatentStore | None = None,
+    ) -> None:
+        """Encode every *uncropped* frame once per orientation (``crop="random"``).
+
+        ``crop_size`` is the latent window side (``resolution // 8``). A frame
+        whose sides are not a multiple of the VAE factor is trimmed symmetrically
+        to one first (Cityscapes at 1024px is 2048x1024 and needs nothing), so a
+        latent window always corresponds to a whole pixel window.
+
+        Frames are decoded on :attr:`DECODE_WORKERS` threads while the GPU
+        encodes; ``full_frame`` and ``caption_at`` are pure functions of the
+        index (no crop draw), so the order they run in cannot matter.
+        """
+        caption_at = _caption_accessor(dataset)
+        if caption_at is None or not callable(getattr(dataset, "full_frame", None)):
+            raise TypeError(
+                f"{type(dataset).__name__} cannot serve uncropped frames "
+                "(needs full_frame(i) and caption_at(i))"
+            )
+
+        def read(index: int) -> tuple[torch.Tensor, str]:
+            frame = _trim_to_multiple(dataset.full_frame(index), vae_scale_factor)
+            return frame, caption_at(index)
+
+        self._fill("full", read, len(dataset), caption_at=caption_at,
+                   with_hflip=with_hflip, store=store, parallel=True)
+        narrowest = min(min(t.shape[-2:]) for t in self.latents)
+        if narrowest < crop_size:
+            raise ValueError(
+                f"Full-frame latents are as small as {narrowest} but the crop window is "
+                f"{crop_size}; the frames are smaller than model.resolution."
+            )
+        self.crop_size = crop_size
+
+    def _fill(
+        self,
+        layout: str,
+        read: Callable[[int], tuple[torch.Tensor, str]],
+        count: int,
+        *,
+        caption_at: Callable[[int], str] | None,
+        with_hflip: bool,
+        store: LatentStore | None,
+        parallel: bool,
+    ) -> None:
+        started = time.perf_counter()
+        loaded = store.load(layout, count=count, with_hflip=with_hflip) if store else None
+        if loaded is not None and caption_at is not None:
+            self.latents, self.latents_flipped = loaded
+            self.captions = [caption_at(index) for index in range(count)]
+            source = f"read from {store.path_for(layout, with_hflip)}"
+        else:
+            latents: list[torch.Tensor] = []
+            flipped: list[torch.Tensor] = []
+            captions: list[str] = []
+            reads = (
+                _read_in_order(read, range(count), workers=self.DECODE_WORKERS)
+                if parallel else (read(index) for index in range(count))
+            )
+            for index, (image, caption) in enumerate(reads):
+                if image.ndim == 3:
+                    image = image.unsqueeze(0)
+                latents.append(self._encode(image))
+                if with_hflip:
+                    flipped.append(self._encode(hflip(image)))
+                captions.append(caption)
+                if (index + 1) % 500 == 0:
+                    logger.info("  encoded %d/%d frames (%.0fs)", index + 1, count,
+                                time.perf_counter() - started)
+            self.latents = latents
+            self.latents_flipped = flipped if with_hflip else None
+            self.captions = captions
+            source = "encoded"
+            if store is not None:
+                store.save(layout, self.latents, self.latents_flipped)
+        total = sum(t.numel() for t in self.latents) * 4 * (2 if with_hflip else 1)
         logger.info(
-            "Cached %d latents %s%s in %.1f MiB (%.1fs)",
-            len(latents),
-            tuple(latents[0].shape[1:]),
+            "Latent cache (%s): %d latents %s%s, %.1f MiB, %s in %.1fs",
+            "uncropped frames, random crop in latent space" if layout == "full"
+            else "centre crop",
+            len(self.latents),
+            tuple(self.latents[0].shape[1:]),
             " x2 orientations" if with_hflip else "",
             total / 2**20,
+            source,
             time.perf_counter() - started,
         )
+
+    def _encode(self, image: torch.Tensor) -> torch.Tensor:
+        return self._adapter.encode_images(image).detach().to("cpu", torch.float32)
+
+    def latent_batch(
+        self, indices: Sequence[int], flips: Sequence[bool], offsets: Sequence[int] | None
+    ) -> torch.Tensor:
+        """The cached latents for one micro-batch, windowed if the cache is uncropped."""
+        pools = (self.latents, self.latents_flipped or self.latents)
+        picked = [pools[int(flip)][i] for i, flip in zip(indices, flips)]
+        if self.crop_size is not None:
+            if offsets is None:
+                raise ValueError("A full-frame latent cache needs crop offsets")
+            picked = [
+                _latent_window(latent, left, self.crop_size, mirrored=flip)
+                for latent, left, flip in zip(picked, offsets, flips)
+            ]
+        return torch.cat(picked, dim=0)
+
+    def crop_spans(self, indices: Sequence[int]) -> list[int]:
+        """How far the latent window can slide for each item (0 = no freedom)."""
+        if self.crop_size is None or self.latents is None:
+            raise ValueError("crop_spans needs a full-frame latent cache")
+        return [self.latents[i].shape[-1] - self.crop_size for i in indices]
 
     def warm(self, captions: Sequence[str]) -> int:
         """Encode any caption not already cached; returns how many were new.
@@ -778,6 +935,81 @@ def _is_deterministic(dataset: Sequence[dict]) -> bool:
     return getattr(dataset, "crop", "center") != "random"
 
 
+def _caption_accessor(dataset: Sequence[dict]) -> Callable[[int], str] | None:
+    """``dataset.caption_at`` if it has one: an item's caption without its pixels."""
+    accessor = getattr(dataset, "caption_at", None)
+    return accessor if callable(accessor) else None
+
+
+def _serves_full_frames(dataset: Sequence[dict]) -> bool:
+    """Whether a random-crop dataset can hand out the frames it crops from."""
+    return callable(getattr(dataset, "full_frame", None)) and _caption_accessor(dataset) is not None
+
+
+def _vae_scale_factor(adapter: DenoiserAdapter, resolution: int) -> int:
+    """Pixels per latent cell, read off the adapter rather than assumed to be 8."""
+    return resolution // adapter.latent_shape(1, resolution)[-1]
+
+
+def _trim_to_multiple(image: torch.Tensor, factor: int) -> torch.Tensor:
+    """Trim ``[...,H,W]`` symmetrically so both sides are multiples of ``factor``."""
+    height, width = image.shape[-2:]
+    keep_h, keep_w = height - height % factor, width - width % factor
+    top, left = (height - keep_h) // 2, (width - keep_w) // 2
+    return image[..., top:top + keep_h, left:left + keep_w]
+
+
+def _latent_window(
+    latent: torch.Tensor, left: int, size: int, *, mirrored: bool = False
+) -> torch.Tensor:
+    """A ``size x size`` window of an uncropped ``[...,h,w]`` latent.
+
+    Mirrors :func:`calora.data.transforms.random_crop`: the window slides
+    horizontally by ``left`` latent cells and stays vertically centred. For a
+    ``mirrored`` latent (the encode of the flipped frame) the window is taken at
+    the mirrored offset, so "crop at ``left``, then flip" and "flip, then read
+    this window" cover the same pixels.
+    """
+    height, width = latent.shape[-2:]
+    span = width - size
+    if not 0 <= left <= span:
+        raise ValueError(f"Window offset {left} outside [0, {span}]")
+    start = span - left if mirrored else left
+    top = (height - size) // 2
+    return latent[..., top:top + size, start:start + size]
+
+
+def _read_in_order(
+    read: Callable[[int], object], indices: Iterable[int], *, workers: int
+) -> Iterator[object]:
+    """``read(i)`` for each index, computed on ``workers`` threads, yielded in order.
+
+    Bounded lookahead (``2 * workers`` reads in flight) so a slow consumer does
+    not pile decoded 2048x1024 frames up in memory. An exception in a read is
+    re-raised at the point its result would have been yielded.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    remaining = iter(indices)
+    with ThreadPoolExecutor(max_workers=max(workers, 1),
+                            thread_name_prefix="calora-decode") as pool:
+        pending = deque(
+            pool.submit(read, index) for index in itertools.islice(remaining, 2 * max(workers, 1))
+        )
+        while pending:
+            result = pending.popleft().result()
+            following = next(remaining, None)
+            if following is not None:
+                pending.append(pool.submit(read, following))
+            yield result
+
+
+def _synchronize(device: torch.device) -> None:
+    """Wait for queued CUDA work, so a wall-clock split lands on the right side."""
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+
 # --------------------------------------------------------------------------------------
 # Training loop
 # --------------------------------------------------------------------------------------
@@ -792,6 +1024,7 @@ def train_lora(
     output_dir: str | Path,
     callbacks: Sequence[StepCallback] = (),
     extra_metadata: Mapping[str, str] | None = None,
+    latent_store: LatentStore | None = None,
 ) -> TrainingState:
     """Fine-tune ``selection``'s units with LoRA on the standard diffusion loss.
 
@@ -802,9 +1035,13 @@ def train_lora(
     type A/B (see :mod:`calora.models.sliced_lora`); at ``module`` they are
     ordinary ``peft`` LoRAs. Nothing else about the loop differs.
 
-    ``cfg.cache_latents`` and ``cfg.mixed_precision`` only affect how fast this
-    runs, never what it converges to; see :class:`_InputCache` and
-    :func:`resolve_mixed_precision` for the conditions under which that holds.
+    ``cfg.cache_latents`` and ``cfg.mixed_precision`` exist for speed; see
+    :class:`_InputCache` and :func:`resolve_mixed_precision` for exactly what
+    each does to the numbers (a centre-crop cache: nothing; a random-crop cache:
+    crops move to latent space; bf16: the forward is rounded, state is not).
+
+    ``latent_store`` keeps the latent cache on disk between runs
+    (``train.latent_cache_dir``); without it the cache lives for this run only.
 
     ``extra_metadata`` is written into every checkpoint. The axis of the arm goes
     in there: a style and a viewpoint adapter of the same arm are identical in
@@ -853,11 +1090,25 @@ def train_lora(
     cache = _InputCache(adapter)
     if cfg.cache_latents:
         if _is_deterministic(dataset):
-            cache.precompute_latents(dataset, with_hflip=use_hflip)
+            cache.precompute_latents(dataset, with_hflip=use_hflip, store=latent_store)
+        elif _serves_full_frames(dataset):
+            resolution = int(dataset.resolution)
+            factor = _vae_scale_factor(adapter, resolution)
+            cache.precompute_full_frame_latents(
+                dataset,
+                crop_size=resolution // factor,
+                vae_scale_factor=factor,
+                with_hflip=use_hflip,
+                store=latent_store,
+            )
+            logger.info(
+                "Random crop taken in latent space: %d-latent window (%dpx) slid over "
+                "each cached uncropped frame", resolution // factor, resolution,
+            )
         else:
             logger.warning(
-                "train.cache_latents=true ignored: the dataset uses a random crop, so "
-                "dataset[i] is not a fixed image. Falling back to per-step VAE encoding."
+                "train.cache_latents=true ignored: the dataset uses a random crop and "
+                "cannot serve uncropped frames. Falling back to per-step VAE encoding."
             )
 
     # Only worth doing where there is VRAM to reclaim; on CPU it would be a
@@ -910,6 +1161,18 @@ def train_lora(
         if prefetcher is not None:
             prefetcher.close()
 
+    if state.step:
+        logger.info(
+            "Trained %d steps in %s: %.3fs/step optimisation-only (%s), %s in callbacks "
+            "(CA drift) = %.0f%% of the wall clock",
+            state.step,
+            _format_duration(state.elapsed),
+            state.train_elapsed / state.step,
+            _format_duration(state.train_elapsed),
+            _format_duration(state.callback_elapsed),
+            100.0 * state.callback_elapsed / max(state.elapsed, 1e-9),
+        )
+
     save_lora(
         unet,
         output_dir / "lora-final.safetensors",
@@ -954,10 +1217,11 @@ def _run_steps(
                 indices
             )
             if cache.latents is not None and cache.captions is not None:
-                pools = (cache.latents, cache.latents_flipped or cache.latents)
-                latents = torch.cat(
-                    [pools[int(flip)][i] for i, flip in zip(indices, flips)], dim=0
+                offsets = (
+                    _draw_crop_offsets(cache.crop_spans(indices), cfg, step, micro)
+                    if cache.crop_size is not None else None
                 )
+                latents = cache.latent_batch(indices, flips, offsets)
                 captions = [cache.captions[i] for i in indices]
             else:
                 batch = (
@@ -1023,9 +1287,11 @@ def _run_steps(
             state.history.append(state.to_dict())
             per_step = state.elapsed / step
             logger.info(
-                "step %d/%d  loss=%.5f  lr=%.2e  (%.1fs, %.2fs/step, ETA %s)",
+                "step %d/%d  loss=%.5f  lr=%.2e  (%.1fs, %.3fs/step train-only, "
+                "%.1fs in callbacks, ETA %s)",
                 step, cfg.max_steps, state.loss, state.learning_rate, state.elapsed,
-                per_step, _format_duration(per_step * (cfg.max_steps - step)),
+                state.train_elapsed / step, state.callback_elapsed,
+                _format_duration(per_step * (cfg.max_steps - step)),
             )
         if cfg.checkpoint_every and step % cfg.checkpoint_every == 0 and step < cfg.max_steps:
             save_lora(
@@ -1035,8 +1301,18 @@ def _run_steps(
                 cfg=cfg.lora,
             )
 
-        for callback in callbacks:
-            callback(state)
+        if callbacks:
+            # Synchronised on both sides so queued optimiser kernels are billed to
+            # training and the callback's own GPU work is billed to it.
+            _synchronize(device)
+            callback_started = time.perf_counter()
+            for callback in callbacks:
+                callback(state)
+            _synchronize(device)
+            now = time.perf_counter()
+            state.callback_elapsed += now - callback_started
+            # Keep elapsed = train + callbacks true after the last step's snapshot.
+            state.elapsed = now - started
 
 
 def _format_duration(seconds: float) -> str:
@@ -1065,3 +1341,14 @@ def _draw_flips(count: int, cfg: TrainConfig, step: int, micro: int) -> list[boo
     """
     generator = derive_generator(cfg.seed, "train-hflip", step, micro)
     return [bool(v) for v in torch.rand(count, generator=generator).lt(0.5).tolist()]
+
+
+def _draw_crop_offsets(spans: Sequence[int], cfg: TrainConfig, step: int, micro: int) -> list[int]:
+    """Latent-window offsets for this micro-batch, uniform over ``[0, span]`` each.
+
+    Keyed on ``(seed, step, micro)`` like :func:`_draw_flips`, not on a read
+    counter: the full-frame cache never reads the dataset during the loop, so
+    there is no read order to key on, and a run stays reproducible end to end.
+    """
+    generator = derive_generator(cfg.seed, "train-crop", step, micro)
+    return [int(torch.randint(0, span + 1, (1,), generator=generator)) for span in spans]

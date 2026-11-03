@@ -38,6 +38,16 @@ class ModelConfig:
     vae_dtype: str = "float32"
     device: str = "auto"
     resolution: int = 512
+    #: TF32 tensor cores for fp32 CUDA matmuls (3-8x an fp32 A100 matmul), set
+    #: process-wide at load time. Off by default because it changes the numbers.
+    #: scripts/measure_ca.py and scripts/check_drift_autocast_gate.py force it
+    #: back off for themselves: the selection measurement and the gate's fp32
+    #: reference are pre-registered as full fp32.
+    allow_tf32: bool = False
+    #: Recompute activations in the backward instead of storing them. Costs
+    #: ~30-40% of a training step and buys memory a batch-1 LoRA run on an 80GB
+    #: A100 does not need. scripts/measure_ca.py turns it on for itself whatever
+    #: this says, because its direction accumulators alone take ~36 GiB.
     enable_gradient_checkpointing: bool = False
     enable_xformers: bool = False
     # Toy-model-only knobs; ignored by the diffusers adapters.
@@ -230,21 +240,43 @@ class TrainConfig:
     max_grad_norm: float = 1.0
     mixed_precision: str = "no"  # "no" | "fp16" | "bf16"; "fp16" requires CUDA
     #: Encode every image's VAE latent once at startup instead of once per step.
-    #: Silently impossible when data.crop="random" (the pixels change per read),
-    #: in which case training warns and falls back to per-step encoding.
+    #: With data.crop="center" the cached latent is exactly what a per-step
+    #: encode would produce. With data.crop="random" the *uncropped* frame is
+    #: encoded once and the crop is taken in latent space (a 1024px window is a
+    #: 128-latent window); see calora.train.lora._InputCache for why that is an
+    #: approximation of a pixel crop rather than an identity. A random-crop
+    #: dataset that cannot hand out its uncropped frames falls back to per-step
+    #: encoding with a warning.
     cache_latents: bool = True
+    #: Directory for an on-disk copy of the latent cache, keyed by model, VAE
+    #: dtype, resolution, image list, layout and flip. Empty = keep the cache in
+    #: memory only. Encoding 2,975 uncropped frames in both orientations costs
+    #: about as much GPU time as a 10k-step run's per-step encodes, so it only
+    #: pays off when every arm after the first reads it back from here.
+    latent_cache_dir: str = ""
     #: Read the next micro-batch's images on a background thread while the GPU
-    #: works on the current one. Only does anything when the latent cache is off
-    #: (data.crop="random"), where each step pays a 2048x1024 PNG decode. Purely
-    #: an overlap: the reads stay single-threaded and in the same order, so the
-    #: numbers are unchanged (tests/test_train_and_stability.py).
+    #: works on the current one. Only does anything when there is no latent cache,
+    #: where each step pays a 2048x1024 PNG decode. Purely an overlap: the reads
+    #: stay single-threaded and in the same order, so the numbers are unchanged
+    #: (tests/test_train_and_stability.py).
     prefetch: bool = True
     seed: int = 0
     checkpoint_every: int = 2_000
     log_every: int = 50
-    # CA drift measurement piggy-backed on the training loop.
-    stability_every: int = 0  # 0 disables
+    #: CA drift measurement piggy-backed on the training loop. 0 disables. Each
+    #: snapshot is a full CA measurement on stability_num_samples samples, so a
+    #: run that only needs the trained adapter should leave this at 0; the time
+    #: spent in it is logged separately from the optimisation steps either way.
+    stability_every: int = 0
     stability_num_samples: int = 64
+    #: Train on a random subset of this many images instead of the whole split
+    #: (the paper's few-shot setting). Training only: drift samples, generation
+    #: prompts and the CMMD reference keep reading the full data, so None vs 10
+    #: changes what the adapter learns from and nothing about how it is measured.
+    subset_size: int | None = None
+    #: Seeds the subset draw, independently of ``seed``, so every arm of a run
+    #: trains on the same images whatever else is varied.
+    subset_seed: int = 0
 
 
 @dataclass
@@ -282,9 +314,18 @@ class EvalConfig:
     #: numbers stay in one feature space.
     clip_model: str = "openai/clip-vit-large-patch14"
     generation_batch_size: int = 4
+    #: "no" | "bf16". Autocast around the UNet forward while sampling; the text
+    #: encoders and the VAE decode stay in the model dtype. "no" enters no autocast
+    #: context at all, so configs that do not set it keep their exact images.
+    generation_autocast: str = "no"
     seed: int = 0
 
     def __post_init__(self) -> None:
+        if self.generation_autocast not in ("no", "bf16"):
+            raise ValueError(
+                f"Unknown eval.generation_autocast {self.generation_autocast!r}; "
+                "expected 'no' or 'bf16'"
+            )
         if self.num_images < 1:
             raise ValueError(f"eval.num_images must be >= 1, got {self.num_images}")
         if not self.weather_conditions:

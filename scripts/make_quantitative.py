@@ -13,18 +13,23 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RUN = ROOT / "runs/sdxl_cityscapes"
-C1 = ROOT / "runs/sdxl_c1"
+# Set these to report another pair of runs, e.g. the 10-image rerun; BASE_EVAL then names its control.
+RUN = ROOT / "runs" / os.environ.get("CATSM_RUN", "sdxl_cityscapes")
+C1 = ROOT / "runs" / os.environ.get("CATSM_RUN_C1", "sdxl_c1")
+BASE_EVAL = os.environ.get("CATSM_BASE_EVAL")
+#: The selections are the full-data run's in every report, and so is their diagnosis.
+DIAGNOSIS = ROOT / "runs/sdxl_cityscapes/diagnosis/diagnosis.json"
 UPSTREAM = Path("/workspace/Optimizing-CA-LoRA/runs/sdxl_cityscapes")
 WEATHER = ["foggy", "night-time", "rainy", "snowy"]
 
 # (label, eval.json, description)
 ARMS = [
-    ("base", UPSTREAM / "control_base/eval.json", "base SDXL (0%), 상위 저장소 재사용"),
-    ("No.1", RUN / "no1/eval.json", "n1 (t=81, 전 구간, 4K import)"),
+    ("base", Path(BASE_EVAL) if BASE_EVAL else UPSTREAM / "control_base/eval.json", "base SDXL (0%), 상위 저장소 재사용"),
+    ("No.1", RUN / "no1/eval.json", "n1 (t=81, 전 구간, 4K)" if BASE_EVAL else "n1 (t=81, 전 구간, 4K import)"),
     ("No.2", RUN / "no2/eval.json", "n4 하드 라우팅"),
     ("No.3", RUN / "no3/eval.json", "n1+n4, core n4, 라우터"),
     ("No.4", RUN / "no4/eval.json", "n1+n3+n4, core n4, 라우터"),
@@ -172,11 +177,11 @@ def section_eval(out: list[str]) -> dict:
 
 
 def section_diagnosis(out: list[str]) -> None:
-    d = load(RUN / "diagnosis/diagnosis.json")
+    d = load(DIAGNOSIS)
     ts = d["timesteps"]
     J = d["jaccard_matrix"]["values"]
     out += ["## 2. 진단: 선택 집합의 t 의존 (2단계)", "",
-            f"출처: `{rel(RUN / 'diagnosis/diagnosis.json')}`. 축 {d['select_axis']}, {d['granularity']} 단위 {d['num_units_total']}개 중 "
+            f"출처: `{rel(DIAGNOSIS)}`. 축 {d['select_axis']}, {d['granularity']} 단위 {d['num_units_total']}개 중 "
             f"상위 {d['fraction']:.0%}({d['per_timestep'][str(ts[0])]['num_units']['style']}개), t {len(ts)}개. "
             "split-half = 같은 t에서 샘플을 반으로 나눠 각각 뽑은 집합 간 Jaccard(측정 잡음의 상한선 역할).", ""]
     rows = []
@@ -285,7 +290,8 @@ def section_cost(out: list[str]) -> None:
         ["fostering (train_summary 기준, 4K step)", str(len(foster)), f"{sum(foster) / len(foster) / 60:.1f}", f"{sum(foster) / 3600:.1f}"],
         ["라우터 학습 (1K step, batch 8)", str(len(asm)), f"{sum(asm) / len(asm) / 60:.1f}", f"{sum(asm) / 3600:.1f}"],
     ])
-    out += ["생성(900장 ≈ 3.9 h/arm, 15.5 s/장)과 CA 측정(76 min/t)은 로그 기반 수치로 `docs/RESULTS.md` §8 참고.", ""]
+    if not BASE_EVAL:
+        out += ["생성(900장 ≈ 3.9 h/arm, 15.5 s/장)과 CA 측정(76 min/t)은 로그 기반 수치로 `docs/RESULTS.md` §8 참고.", ""]
 
 
 def main(argv: list[str] | None = None) -> None:

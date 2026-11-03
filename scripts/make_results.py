@@ -37,6 +37,9 @@ RES = ROOT / "results"
 FIG = ROOT / "figures"
 RUNS = ROOT / "runs"
 UPSTREAM = Path("/workspace/Optimizing-CA-LoRA/Improving-CA-LoRA/results/sdxl_cityscapes")
+RUN, RUN_C1 = "sdxl_cityscapes", "sdxl_c1"
+#: When set, the base control's eval.json comes from here instead of UPSTREAM.
+BASE_EVAL: Path | None = None
 
 HEAD_PCT = 2.0          # 208 of 10,400 attention-head units per expert
 FOSTER_STEPS = 4000     # per expert
@@ -71,13 +74,20 @@ CONDITIONS = ("foggy", "night-time", "rainy", "snowy")
 BOUNDARIES = {"n5": 62, "n4/n5": 125, "n3/n4/n5": 250, "all m>1": 500}
 
 
+def source_of(src: str) -> str:
+    """``ARMS`` source path with this report's run names."""
+    run, arm = src.split("/")
+    return f"{RUN_C1 if run == 'sdxl_c1' else RUN}/{arm}"
+
+
 def refresh() -> None:
     (RES / "evals").mkdir(parents=True, exist_ok=True)
     (RES / "reference_10k").mkdir(parents=True, exist_ok=True)
     for arm, (_, src, _) in ARMS.items():
-        shutil.copy2(RUNS / src / "eval.json", RES / "evals" / f"{arm}.json")
+        shutil.copy2(RUNS / source_of(src) / "eval.json", RES / "evals" / f"{arm}.json")
     for arm in REFERENCE:
-        shutil.copy2(UPSTREAM / arm / "eval.json", RES / "reference_10k" / f"{arm}.json")
+        source = BASE_EVAL if arm == "control_base" and BASE_EVAL else UPSTREAM / arm / "eval.json"
+        shutil.copy2(source, RES / "reference_10k" / f"{arm}.json")
     diag_path = RUNS / "sdxl_cityscapes/diagnosis/diagnosis.json"
     diag = json.loads(diag_path.read_text())
     keep = {
@@ -173,8 +183,10 @@ def write_tables(rows: list[dict]) -> None:
 
     main = [r for r in rows if r["group"] != "reference"]
     ref = [r for r in rows if r["group"] == "reference"]
-    text = "\n".join([head, sep, *map(line, main), "", "Reference only — Improving-CA-LoRA, single LoRA trained 10K steps; "
-                      "not a direct comparison (design §5.1):", "", head, sep, *map(line, ref)])
+    note = ("Base control (no training, same protocol):" if BASE_EVAL else
+            "Reference only — Improving-CA-LoRA, single LoRA trained 10K steps; "
+            "not a direct comparison (design §5.1):")
+    text = "\n".join([head, sep, *map(line, main), "", note, "", head, sep, *map(line, ref)])
     (RES / "summary.md").write_text(text + "\n")
     print(text)
 
@@ -279,7 +291,10 @@ def plot_tradeoff(rows: list[dict]) -> None:
     rt = [r for r in rows if r["arm"] in ("no4", "no5", "no7", "no9")]
     ax.annotate("No.4/5/7/9", (min(r["cmmd"] for r in rt), min(r["clip_weather"] for r in rt)), xytext=(-6, -18),
                 textcoords="offset points", fontsize=8.5, color="#3d3d3a")
+    present = {group(r) for r in rows if r["arm"] != "control_base"}
     for g, (c, mk, lab) in groups.items():
+        if g not in present:
+            continue
         ax.scatter([], [], s=60, marker=mk, facecolors="white" if g == "ref" else c, edgecolors=c, label=lab)
     ax.legend(frameon=False, fontsize=8, loc="upper left")
     ax.annotate(f"0% control off scale: CMMD {base['cmmd']:.2f}, weather {base['clip_weather']:.1f} →",
@@ -336,9 +351,22 @@ def write_manifest() -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    global RUN, RUN_C1, RES, FIG, BASE_EVAL
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--refresh", action="store_true", help="Copy evidence from runs/ and Improving-CA-LoRA first")
+    parser.add_argument("--run", default=RUN, help="Run holding the main arms")
+    parser.add_argument("--run-c1", default=RUN_C1, help="Run holding control C1")
+    parser.add_argument("--results-dir", type=Path, default=RES)
+    parser.add_argument("--figures-dir", type=Path, default=FIG)
+    parser.add_argument("--base-eval", type=Path, default=None,
+                        help="Report only this base-control eval.json, without the 10K reference arms")
     args = parser.parse_args(argv)
+    RUN, RUN_C1, RES, FIG, BASE_EVAL = args.run, args.run_c1, args.results_dir, args.figures_dir, args.base_eval
+    if BASE_EVAL:
+        for arm in list(REFERENCE):
+            if arm != "control_base":
+                del REFERENCE[arm]
+    RES.mkdir(parents=True, exist_ok=True)
     if args.refresh:
         refresh()
     rows = load_rows()

@@ -57,10 +57,11 @@ def smooth(y, k=10):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="runs/loss_curves.png")
+    ap.add_argument("--runs", nargs="*", default=[name for name, _ in RUNS], help="Run names under runs/")
     a = ap.parse_args()
     panels = []
-    for run_name, rd in RUNS:
-        rd = Path(rd)
+    for run_name in a.runs:
+        rd = Path("runs") / run_name
         done = completed(rd)
         prog = in_progress(rd, set(done))
         for name, d in list(done.items()) + list(prog.items()):

@@ -85,31 +85,47 @@ class DummyConceptDataset(Sequence):
         self.hflip = hflip
         self.augs_per_sample = augs_per_sample
         self.seed = seed
+        #: Which synthetic images this dataset serves. Also part of its latent
+        #: cache identity: two equally long subsets are different pixels.
+        self.source_indices = list(range(num_items))
 
     def __len__(self) -> int:
-        return self.num_items
+        return len(self.source_indices)
+
+    def restrict(self, indices: Sequence[int]) -> None:
+        """Same contract as :meth:`CityscapesConceptDataset.restrict`."""
+        self.source_indices = [self.source_indices[index] for index in indices]
+
+    def item_keys(self) -> list[str]:
+        """Same contract as :meth:`CityscapesConceptDataset.item_keys`."""
+        return [f"dummy_{source:06d}" for source in self.source_indices]
 
     def caption_for_index(self, index: int) -> str:
         city = FAKE_CITIES[index % len(FAKE_CITIES)]
         return self.caption_template.format(city=city, key=f"dummy_{index:06d}")
 
+    def caption_at(self, index: int) -> str:
+        """Same contract as :meth:`CityscapesConceptDataset.caption_at`."""
+        return self.caption_for_index(self.source_indices[index])
+
     def distinct_captions(self) -> list[str]:
         """Every caption, without synthesising an image — same contract as
         :class:`~calora.data.cityscapes.CityscapesConceptDataset`."""
-        return sorted({self.caption_for_index(i) for i in range(self.num_items)})
+        return sorted({self.caption_for_index(i) for i in self.source_indices})
 
     def __getitem__(self, index: int) -> dict:  # type: ignore[override]
-        if not 0 <= index < self.num_items:
+        if not 0 <= index < len(self):
             raise IndexError(index)
-        city = FAKE_CITIES[index % len(FAKE_CITIES)]
-        caption = self.caption_for_index(index)
+        source = self.source_indices[index]
+        city = FAKE_CITIES[source % len(FAKE_CITIES)]
+        caption = self.caption_for_index(source)
         return {
             "index": index,
-            "image": synthetic_image(index, self.resolution, self.seed),
+            "image": synthetic_image(source, self.resolution, self.seed),
             "caption": caption,
-            "augmented": self.augmenter.augment_many(caption, index, self.augs_per_sample),
+            "augmented": self.augmenter.augment_many(caption, source, self.augs_per_sample),
             "city": city,
-            "key": f"dummy_{index:06d}",
+            "key": f"dummy_{source:06d}",
             "image_path": None,
             "label_path": None,
         }

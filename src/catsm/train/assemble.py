@@ -20,17 +20,18 @@ from torch import nn
 
 from calora.data.transforms import hflip
 from calora.models.adapter import DenoiserAdapter
+from calora.train.latent_store import LatentStore
 from calora.train.lora import (
     StepCallback,
     TrainingState,
     _autocast,
     _checkpoint_granularity,
+    _draw_crop_offsets,
     _draw_flips,
     _draw_indices,
     _format_duration,
     _head_selection_from_state,
     _InputCache,
-    _is_deterministic,
     _ItemPrefetcher,
     _micro_batch_plan,
     _park_text_encoders,
@@ -400,9 +401,11 @@ def train_router(
     *,
     output_dir: str | Path,
     callbacks: Sequence[StepCallback] = (),
+    latent_store: LatentStore | None = None,
 ) -> TrainingState:
     """Train the router on ``L_Diff`` over all timesteps with every expert frozen."""
     from catsm.bundle import save_bundle
+    from catsm.train.foster import fill_latent_cache
 
     if assembly.router is None:
         raise ValueError("This assembly has no router (single set or --no-router); nothing to train")
@@ -436,8 +439,8 @@ def train_router(
     device, dtype = adapter.device, adapter.dtype
     use_hflip = bool(getattr(dataset, "hflip", False))
     cache = _InputCache(adapter)
-    if cfg.cache_latents and _is_deterministic(dataset):
-        cache.precompute_latents(dataset, with_hflip=use_hflip)
+    if cfg.cache_latents:
+        fill_latent_cache(cache, adapter, dataset, with_hflip=use_hflip, store=latent_store)
     if device.type == "cuda":
         _park_text_encoders(adapter, cache, dataset)
     reads_dataset = cache.latents is None or cache.captions is None
@@ -464,10 +467,11 @@ def train_router(
                     else [False] * len(indices)
                 )
                 if cache.latents is not None and cache.captions is not None:
-                    pools = (cache.latents, cache.latents_flipped or cache.latents)
-                    latents = torch.cat(
-                        [pools[int(flip)][i] for i, flip in zip(indices, flips)], dim=0
+                    offsets = (
+                        _draw_crop_offsets(cache.crop_spans(indices), cfg, step, micro)
+                        if cache.crop_size is not None else None
                     )
+                    latents = cache.latent_batch(indices, flips, offsets)
                     captions = [cache.captions[i] for i in indices]
                 else:
                     batch = (

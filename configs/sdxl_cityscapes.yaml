@@ -85,6 +85,7 @@ train:                     # fostering: per expert, design §7
   lr_warmup_steps: 0
   max_grad_norm: 1.0
   mixed_precision: "no"
+  cache_latents: false     # per-step pixel crop + VAE encode, as the reported full-data run did
   seed: 0
   checkpoint_every: 1000
   log_every: 50
@@ -97,6 +98,7 @@ assemble:                  # router training, experts frozen (design §3.2 step 
   batch_size: 8            # user decision 2026-09-16: batch-1 L_Diff is dominated by the (image, t) draw, so the router gradient needs a larger batch; 8 if it fits the A100, else 4. Steps stay 1000.
   learning_rate: 1.0e-3
   init_gate: 1.0           # raw router output; start from the plain sum of active experts
+  cache_latents: false     # per-step pixel crop + VAE encode, as the reported full-data run did
   seed: 0
   log_every: 50
 

@@ -1,5 +1,5 @@
 Vendored copy of calora (Improving-CA-LoRA reimplementation of CA-LoRA).
 Source: /workspace/Optimizing-CA-LoRA/src/calora (github.com/chs35/Optimizing-CA-LoRA)
-Commit: 500c9ecc0f5202ae50cc3a0cf4768560c07e1efb
-Copied: 2026-09-14T03:56:27Z
+Commit: db680c3 (re-synced 2026-11-03 for bf16 autocast, TF32, latent-space crop and train.subset_size; previously 500c9ec)
+Copied: 2026-11-03
 Do not edit; all CA-LoRA-TSM code lives in src/catsm.

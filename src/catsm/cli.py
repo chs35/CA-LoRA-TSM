@@ -15,9 +15,10 @@ from pathlib import Path
 
 from calora.ca.select import Selection
 from calora.config import parse_cli_overrides, save_config
-from calora.data import build_dataset
+from calora.data import apply_training_subset, build_dataset
 from calora.models.loader import load_adapter
-from calora.utils.io import dump_json
+from calora.train.latent_store import LatentStore
+from calora.utils.io import dump_json, load_json
 from calora.utils.logging import get_logger, setup_logging
 from catsm.config import CatsmConfig, load_config
 from catsm.intervals import build_scheme, parse_expert_name
@@ -66,6 +67,37 @@ def bundle_dir(cfg: CatsmConfig, sets: list[str], core: str, disabled: list[str]
     return cfg.run_dir / "bundles" / name
 
 
+def restrict_to_training_subset(cfg: CatsmConfig, dataset) -> dict | None:
+    """Apply ``train.subset_size`` and pin the draw to the run directory.
+
+    Experts and routers are compared on the premise that they saw the same images,
+    so the first job of a run records the draw and every later one must reproduce it.
+    Only the training loops call this: evaluation keeps reading the full data.
+    """
+    if cfg.train.subset_size is None:
+        return None
+    record = apply_training_subset(dataset, cfg.train.subset_size, seed=cfg.train.subset_seed)
+    path = cfg.run_dir / "training_subset.json"
+    if path.exists():
+        recorded = load_json(path)
+        if recorded != record:
+            raise RuntimeError(
+                f"Training subset differs from the one recorded in {path}: "
+                f"{recorded.get('keys')} vs {record['keys']}"
+            )
+    else:
+        dump_json(record, path)
+    logger.info("Training on %d of %d images (subset_seed=%d): %s",
+                record["size"], record["source_size"], record["seed"], record["keys"])
+    return record
+
+
+def latent_store_for(cfg: CatsmConfig, dataset, cache_latents: bool) -> LatentStore | None:
+    if not (cache_latents and cfg.train.latent_cache_dir):
+        return None
+    return LatentStore.for_run(cfg.train.latent_cache_dir, cfg.model, dataset)
+
+
 # --------------------------------------------------------------------------------------
 
 
@@ -104,6 +136,7 @@ def cmd_foster(args: argparse.Namespace) -> None:
     path = Path(args.selection) if args.selection else selections_dir(cfg, set_name) / f"{args.expert}.json"
     selection = load_selection(path)
     dataset = build_dataset(cfg.data, resolution=cfg.model.resolution, seed=cfg.train.seed)
+    subset = restrict_to_training_subset(cfg, dataset)
     output = experts_dir(cfg) / args.expert
     logger.info("Fostering %s on [%d, %d] from %s (%d units) -> %s",
                 args.expert, interval.lo, interval.hi, path, len(selection), output)
@@ -117,7 +150,9 @@ def cmd_foster(args: argparse.Namespace) -> None:
             "select_mode": str(selection.meta.get("mode", "")),
             "ca_timesteps": str(selection.meta.get("timesteps", "")),
             "selection_sha": str(selection.meta["selection_sha"]),
+            **({"training_subset": ",".join(subset["keys"])} if subset else {}),
         },
+        latent_store=latent_store_for(cfg, dataset, cfg.train.cache_latents),
     )
     dump_json(selection.to_dict(), output / "selection.json")
     logger.info("Expert %s written to %s", args.expert, output / "lora-final.safetensors")
@@ -142,7 +177,11 @@ def cmd_assemble(args: argparse.Namespace) -> None:
         logger.info("Hard-routed bundle (no router) written to %s", output)
         return
     dataset = build_dataset(cfg.data, resolution=cfg.model.resolution, seed=cfg.assemble.seed)
-    train_router(assembly, dataset, cfg.assemble, output_dir=output)
+    restrict_to_training_subset(cfg, dataset)
+    train_router(
+        assembly, dataset, cfg.assemble, output_dir=output,
+        latent_store=latent_store_for(cfg, dataset, cfg.assemble.cache_latents),
+    )
     logger.info("Bundle written to %s", output / "bundle.safetensors")
 
 

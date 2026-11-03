@@ -74,8 +74,10 @@ class Router(nn.Module):
             raise ValueError(
                 f"z_t must be (B, {self.latent_channels}, ...), got {tuple(z_t.shape)}"
             )
-        pooled = z_t.float().mean(dim=tuple(range(2, z_t.dim()))) if z_t.dim() > 2 else z_t.float()
-        flat = self.fc(pooled) + self.t_embed(t.long().to(pooled.device))
+        # fp32 even when the UNet forward around this call runs under bf16 autocast.
+        with torch.autocast(device_type=z_t.device.type, enabled=False):
+            pooled = z_t.float().mean(dim=tuple(range(2, z_t.dim()))) if z_t.dim() > 2 else z_t.float()
+            flat = self.fc(pooled) + self.t_embed(t.long().to(pooled.device))
         return flat.view(-1, self.num_modules, self.num_sets)
 
     def describe(self) -> dict:

@@ -6,7 +6,7 @@ import torch
 
 from calora.config import ModelConfig
 from calora.models.adapter import DenoiserAdapter
-from calora.utils.device import resolve_device, resolve_dtype
+from calora.utils.device import resolve_device, resolve_dtype, set_matmul_tf32
 from calora.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -15,6 +15,11 @@ logger = get_logger(__name__)
 def load_adapter(cfg: ModelConfig) -> DenoiserAdapter:
     device = resolve_device(cfg.device)
     dtype = resolve_dtype(cfg.dtype)
+    # Only ever switched *on* here: allow_tf32=false leaves PyTorch's default in
+    # place, so configs that never mention it keep their numbers.
+    if cfg.allow_tf32:
+        set_matmul_tf32(True)
+        logger.info("TF32 enabled for fp32 CUDA matmuls (model.allow_tf32)")
 
     if cfg.kind == "toy":
         from calora.models.toy import ToyAdapter

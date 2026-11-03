@@ -6,7 +6,7 @@
 set -u
 cd "$(dirname "$0")/.."
 source scripts/env.sh
-CFG=configs/sdxl_cityscapes.yaml
+CFG=${CFG:-configs/sdxl_cityscapes.yaml}
 for job in "$@"; do
   IFS=: read -r run expert selection <<< "$job"
   out=runs/$run/experts/$expert/lora-final.safetensors

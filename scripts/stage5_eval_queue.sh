@@ -14,32 +14,35 @@ set -u
 cd "$(dirname "$0")/.."
 source scripts/env.sh
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-16} MKL_NUM_THREADS=${MKL_NUM_THREADS:-16}
-CFG=configs/sdxl_cityscapes.yaml
+CFG=${CFG:-configs/sdxl_cityscapes.yaml}
+RUN=${RUN:-sdxl_cityscapes}
+RUN_C1=${RUN_C1:-sdxl_c1}
 now() { TZ=Asia/Seoul date '+%F %T KST'; }
 SMOKE=${SMOKE:-0}; SEED=${SEED:-0}
+ONLY=${ONLY:-}  # ONLY=generate or ONLY=evaluate runs one half, so a runner can check and retry each.
 
 bundle_of() {  # name -> "run|bundle path" (base -> "sdxl_cityscapes|")
   case "$1" in
-    base) echo "sdxl_cityscapes|" ;;
-    no1) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1-core-n1/bundle.safetensors" ;;
-    no2) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n4-core-n4/bundle.safetensors" ;;
-    c1)  echo "sdxl_c1|runs/sdxl_c1/bundles/n4-core-n4/bundle.safetensors" ;;
-    no3) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1+n4-core-n4/bundle.safetensors" ;;
-    no4) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1+n3+n4-core-n4/bundle.safetensors" ;;
-    no5) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1+n4+n5-core-n4/bundle.safetensors" ;;
-    no6) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n3+n4+n5-core-n4/bundle.safetensors" ;;
-    no7) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1+n4+n5-core-n5/bundle.safetensors" ;;
-    no8) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1+n3+n4+n5-core-n4/bundle.safetensors" ;;
-    no9) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1+n3+n4+n5-core-n5/bundle.safetensors" ;;
-    c2|c2n3) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n1+n4-core-n4-disable-n4_i3/bundle.safetensors" ;;
-    c2n2) echo "sdxl_cityscapes|runs/sdxl_cityscapes/bundles/n4-core-n4-disable-n4_i3/bundle.safetensors" ;;
+    base) echo "$RUN|" ;;
+    no1) echo "$RUN|runs/$RUN/bundles/n1-core-n1/bundle.safetensors" ;;
+    no2) echo "$RUN|runs/$RUN/bundles/n4-core-n4/bundle.safetensors" ;;
+    c1)  echo "$RUN_C1|runs/$RUN_C1/bundles/n4-core-n4/bundle.safetensors" ;;
+    no3) echo "$RUN|runs/$RUN/bundles/n1+n4-core-n4/bundle.safetensors" ;;
+    no4) echo "$RUN|runs/$RUN/bundles/n1+n3+n4-core-n4/bundle.safetensors" ;;
+    no5) echo "$RUN|runs/$RUN/bundles/n1+n4+n5-core-n4/bundle.safetensors" ;;
+    no6) echo "$RUN|runs/$RUN/bundles/n3+n4+n5-core-n4/bundle.safetensors" ;;
+    no7) echo "$RUN|runs/$RUN/bundles/n1+n4+n5-core-n5/bundle.safetensors" ;;
+    no8) echo "$RUN|runs/$RUN/bundles/n1+n3+n4+n5-core-n4/bundle.safetensors" ;;
+    no9) echo "$RUN|runs/$RUN/bundles/n1+n3+n4+n5-core-n5/bundle.safetensors" ;;
+    c2|c2n3) echo "$RUN|runs/$RUN/bundles/n1+n4-core-n4-disable-n4_i3/bundle.safetensors" ;;
+    c2n2) echo "$RUN|runs/$RUN/bundles/n4-core-n4-disable-n4_i3/bundle.safetensors" ;;
     *)   return 1 ;;
   esac
 }
 
 # One CMMD reference export (Cityscapes val 500, centre crop) serves both run dirs.
-mkdir -p runs/sdxl_c1
-[ -e runs/sdxl_c1/reference ] || ln -s ../sdxl_cityscapes/reference runs/sdxl_c1/reference
+mkdir -p runs/$RUN_C1
+[ -e runs/$RUN_C1/reference ] || ln -s ../$RUN/reference runs/$RUN_C1/reference
 
 for name in "$@"; do
   line=$(bundle_of "$name") || { echo "[$(now)] unknown configuration '$name'"; exit 2; }
@@ -52,6 +55,7 @@ for name in "$@"; do
   mkdir -p runs/$run/logs
   manifest=runs/$run/$arm/generated/manifest.json
 
+  if [ "$ONLY" != evaluate ]; then
   echo "[$(now)] start $name -> $run/$arm generate ${src[*]:-(base model)} ${setargs[*]}"
   python scripts/generate_images.py --config $CFG --name $run "${src[@]}" --run-name "$arm" --skip-existing "${setargs[@]}" \
     > runs/$run/logs/gen_$arm.out 2>&1
@@ -70,6 +74,8 @@ assert not missing, missing[:3]
 if bundle:
     assert m["gate_hook_calls"] > 0, "bundle arm without gate hook calls"
 PY
+  fi
+  [ "$ONLY" = generate ] && continue
 
   echo "[$(now)] start $name evaluate"
   python scripts/evaluate.py --config $CFG --name $run --run-name "$arm" "${setargs[@]}" > runs/$run/logs/eval_$arm.out 2>&1

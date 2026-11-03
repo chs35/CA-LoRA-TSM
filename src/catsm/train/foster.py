@@ -28,10 +28,12 @@ from calora.ca.select import Selection
 from calora.config import TrainConfig
 from calora.data.transforms import hflip
 from calora.models.adapter import DenoiserAdapter
+from calora.train.latent_store import LatentStore
 from calora.train.lora import (
     StepCallback,
     TrainingState,
     _autocast,
+    _draw_crop_offsets,
     _draw_flips,
     _draw_indices,
     _format_duration,
@@ -40,6 +42,8 @@ from calora.train.lora import (
     _ItemPrefetcher,
     _micro_batch_plan,
     _park_text_encoders,
+    _serves_full_frames,
+    _vae_scale_factor,
     attach_lora,
     build_lr_lambda,
     lora_parameters,
@@ -127,6 +131,42 @@ def _interval_metadata(
     return meta
 
 
+def fill_latent_cache(
+    cache: _InputCache,
+    adapter: DenoiserAdapter,
+    dataset: Sequence[dict],
+    *,
+    with_hflip: bool,
+    store: LatentStore | None = None,
+) -> None:
+    """Fill ``cache`` the way ``calora.train.lora.train_lora`` does.
+
+    A centre-crop dataset caches its items. A random-crop dataset caches uncropped
+    frames, and the loop then takes each step's crop as a latent window.
+    """
+    if _is_deterministic(dataset):
+        cache.precompute_latents(dataset, with_hflip=with_hflip, store=store)
+    elif _serves_full_frames(dataset):
+        resolution = int(dataset.resolution)
+        factor = _vae_scale_factor(adapter, resolution)
+        cache.precompute_full_frame_latents(
+            dataset,
+            crop_size=resolution // factor,
+            vae_scale_factor=factor,
+            with_hflip=with_hflip,
+            store=store,
+        )
+        logger.info(
+            "Random crop taken in latent space: %d-latent window (%dpx) slid over "
+            "each cached uncropped frame", resolution // factor, resolution,
+        )
+    else:
+        logger.warning(
+            "cache_latents=true ignored: the dataset uses a random crop and cannot "
+            "serve uncropped frames; falling back to per-step VAE encoding."
+        )
+
+
 def train_expert(
     adapter: DenoiserAdapter,
     dataset: Sequence[dict],
@@ -138,6 +178,7 @@ def train_expert(
     output_dir: str | Path,
     metadata: Mapping[str, str] | None = None,
     callbacks: Sequence[StepCallback] = (),
+    latent_store: LatentStore | None = None,
 ) -> FosterState:
     """Fine-tune ``selection``'s heads on ``L_Diff`` at timesteps drawn from ``interval``.
 
@@ -158,6 +199,11 @@ def train_expert(
     output_dir.mkdir(parents=True, exist_ok=True)
     seed_everything(cfg.seed)
     autocast_dtype, scaler = resolve_mixed_precision(cfg.mixed_precision, adapter.device)
+    if autocast_dtype is not None:
+        logger.info(
+            "Mixed precision: %s autocast on %s (LoRA weights and Adam state stay fp32)",
+            cfg.mixed_precision, adapter.device.type,
+        )
 
     unet = adapter.unet
     unet.requires_grad_(False)
@@ -183,13 +229,7 @@ def train_expert(
     use_hflip = bool(getattr(dataset, "hflip", False))
     cache = _InputCache(adapter)
     if cfg.cache_latents:
-        if _is_deterministic(dataset):
-            cache.precompute_latents(dataset, with_hflip=use_hflip)
-        else:
-            logger.warning(
-                "train.cache_latents=true ignored: the dataset uses a random crop; "
-                "falling back to per-step VAE encoding."
-            )
+        fill_latent_cache(cache, adapter, dataset, with_hflip=use_hflip, store=latent_store)
     if device.type == "cuda":
         _park_text_encoders(adapter, cache, dataset)
     reads_dataset = cache.latents is None or cache.captions is None
@@ -226,10 +266,11 @@ def train_expert(
                     else [False] * len(indices)
                 )
                 if cache.latents is not None and cache.captions is not None:
-                    pools = (cache.latents, cache.latents_flipped or cache.latents)
-                    latents = torch.cat(
-                        [pools[int(flip)][i] for i, flip in zip(indices, flips)], dim=0
+                    offsets = (
+                        _draw_crop_offsets(cache.crop_spans(indices), cfg, step, micro)
+                        if cache.crop_size is not None else None
                     )
+                    latents = cache.latent_batch(indices, flips, offsets)
                     captions = [cache.captions[i] for i in indices]
                 else:
                     batch = (

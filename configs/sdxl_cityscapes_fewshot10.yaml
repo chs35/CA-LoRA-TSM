@@ -1,0 +1,32 @@
+# sdxl_cityscapes.yaml trained on 10 randomly drawn images, using the A100's tensor cores.
+#
+# Same arms, selections, steps and evaluation protocol as the full-data run. What changes:
+#   - train.subset_size: the training loops (fostering, router) read 10 images, drawn from the
+#     whole train split and pinned in <run>/training_subset.json. Selections stay the ones
+#     measured on 256 images; generation prompts and the CMMD reference keep reading the full
+#     data. subset_seed 0 draws the same 10 images as Optimizing-CA-LoRA's few-shot campaign.
+#   - bf16 autocast around the training forward, with fp32 weights, LoRA masters and Adam state.
+#   - TF32 for fp32 matmuls, in training and in generation. Generation stays fp32: bf16 sampling
+#     missed the pre-registered CLIP-cosine threshold in the sibling repo (0.98946 < 0.99).
+#   - No gradient checkpointing, and a latent cache with the random crop taken in latent space.
+#
+# The precision and crop changes mean a difference from the full-data numbers cannot be
+# attributed to the image count alone.
+_base_: sdxl_cityscapes.yaml
+
+name: sdxl_cityscapes_fewshot10
+
+model:
+  allow_tf32: true
+  enable_gradient_checkpointing: false
+
+train:
+  mixed_precision: bf16
+  cache_latents: true
+  latent_cache_dir: runs/latent_cache
+  subset_size: 10
+  subset_seed: 0
+
+assemble:
+  mixed_precision: bf16
+  cache_latents: true
