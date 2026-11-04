@@ -6,7 +6,7 @@
 - **번호** 열: `report_draft1.md`의 References 번호.
 - 저자 전체 목록이 확실하지 않은 항목은 "et al."로 적었다.
 
-최종 갱신: 2026-09-20.
+최종 갱신: 2026-11-05 (1.1 추가).
 
 ## 1. 내부 자료
 
@@ -25,6 +25,21 @@
 | 선택 코드 | `src/catsm/select.py` | 3.2절 representative / aggregate 두 방식 |
 | 원자료 JSON | `runs/sdxl_cityscapes/*/eval.json`(routing.experts의 logsnr_lo/hi), `diagnosis/diagnosis.json`, `experts/*/paired_loss.json`, `bundles/*/bundle_stats.json` | Table 2의 log-SNR 경계, 진단·paired loss·라우터 수치 |
 | 그림 | `docs/figures/cmmd_vs_weather_clip.png` ← `scripts/plot_tradeoff.py` | (5절 예정) 정렬 vs 제어성 산점도 |
+
+### 1.1 10장 재실험 보고서(`REPORT.md`, 2026-11-05)에 쓴 자료
+
+| 자료 | 위치 | 어디에 썼는가 | 검증 |
+|---|---|---|---|
+| 결론 정리 (2026-09-21) | `docs/Conclusion.md` | §1 문제 상황, §2 Novelty를 그대로 옮김. §3.1을 부록 A로 옮김. §6 결론의 틀 | 내부 |
+| 결과 정리 (2026-09-19) | `docs/RESULTS.md` | §3 진단을 그대로 옮김. §4 구성표의 틀. §5.7 비교표의 앞선 실험 수치 | 내부 |
+| 정량 결과, 10장 (자동 생성) | `docs/QUANTITATIVE_fewshot10.md` ← `CATSM_RUN=sdxl_cityscapes_fewshot10 ... scripts/make_quantitative.py` | §5의 모든 수치, z 값, 라우터 게이트, paired loss, 비용 | 원본 JSON에서 생성 |
+| 집계표와 그림, 10장 | `results/fewshot10/`, `figures/fewshot10/` ← `scripts/make_results.py --run sdxl_cityscapes_fewshot10 ...` | §5.1 표와 산점도, `MANIFEST.md`의 sha256 | 원본 JSON에서 생성 |
+| base 대조군 | `/workspace/Optimizing-CA-LoRA/runs/sdxl_cityscapes_fewshot10/control_base/eval.json` (사본 `results/fewshot10/reference_10k/control_base.json`) | §5.1 base 행 | 프로토콜 블록을 이번 eval.json과 대조(차이는 `generation_autocast: no` 하나, 같은 조건) |
+| 학습 10장 | `runs/sdxl_cityscapes_fewshot10/training_subset.json` | 머리말, 프로토콜 | Optimizing-CA-LoRA 같은 파일과 key 일치(게이트) |
+| 텐서코어 게이트 | `runs/sdxl_cityscapes_fewshot10_gate/tensor_core_gate.json` ← `scripts/ops/check_tensor_cores.py` | §7 게이트 표 | 실행 결과 |
+| GPU 점검 방식 | `../Hierarchial-CFG/src/hcfg/gpu_check.py`, `src/hcfg/utils/device.py` | 게이트의 커널 분류(텐서코어 커널 이름 표지), TF32 설정 | 코드 대조 |
+| 실행 기록 | `runs/sdxl_cityscapes_fewshot10/campaign.log` | §4, §7 소요 시간 | 실행 결과 |
+| 정성 점검 | `runs/*/generated/` 직접 열람(arm 간 같은 index, No.6 40장, 고주파 점수 상위 7장) | §5.5 | 열람 |
 
 ## 2. 논문
 

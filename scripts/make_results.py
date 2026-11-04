@@ -284,13 +284,14 @@ def plot_tradeoff(rows: list[dict]) -> None:
         face = "white" if g == "ref" else c
         ax.scatter(r["cmmd"], r["clip_weather"], s=70, marker=mk, facecolors=face, edgecolors=c if g == "ref" else "white",
                    linewidths=1.6, zorder=3)
-        if r["label"] in offsets or g != "router":
-            ax.annotate(r["label"], (r["cmmd"], r["clip_weather"]), xytext=offsets.get(r["label"], (8, 2)),
+        if BASE_EVAL or r["label"] in offsets or g != "router":
+            ax.annotate(r["label"], (r["cmmd"], r["clip_weather"]), xytext=(FEW_OFFSETS if BASE_EVAL else offsets).get(r["label"], (8, 2)),
                         textcoords="offset points", fontsize=8.5, color="#3d3d3a")
-    # the five overlapping n1-context routers get one shared label
-    rt = [r for r in rows if r["arm"] in ("no4", "no5", "no7", "no9")]
-    ax.annotate("No.4/5/7/9", (min(r["cmmd"] for r in rt), min(r["clip_weather"] for r in rt)), xytext=(-6, -18),
-                textcoords="offset points", fontsize=8.5, color="#3d3d3a")
+    if not BASE_EVAL:
+        # the five overlapping n1-context routers get one shared label
+        rt = [r for r in rows if r["arm"] in ("no4", "no5", "no7", "no9")]
+        ax.annotate("No.4/5/7/9", (min(r["cmmd"] for r in rt), min(r["clip_weather"] for r in rt)), xytext=(-6, -18),
+                    textcoords="offset points", fontsize=8.5, color="#3d3d3a")
     present = {group(r) for r in rows if r["arm"] != "control_base"}
     for g, (c, mk, lab) in groups.items():
         if g not in present:
@@ -321,8 +322,17 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+#: Label offsets for the 10-image rerun (--base-eval), whose points sit elsewhere.
+FEW_OFFSETS = {"No.1": (6, -11), "No.2": (8, 3), "C1": (8, -4), "No.6": (8, 3), "C2 (No.2)": (-62, 4),
+               "C2 (No.3)": (8, 4), "No.3": (-10, -13), "No.4": (-10, 6), "No.5": (-32, 2), "No.7": (8, 0),
+               "No.8": (8, -9), "No.9": (-14, 7)}
+
+
 def write_manifest() -> None:
-    files = sorted(p for d in (RES, FIG) for p in d.rglob("*") if p.is_file() and p.name != "MANIFEST.md")
+    # Another run's outputs nested here (results/<name>/ with its own MANIFEST, figures/<name>/) are its own.
+    nested = {m.parent.name for m in RES.glob("*/MANIFEST.md")}
+    files = sorted(p for d in (RES, FIG) for p in d.rglob("*") if p.is_file() and p.name != "MANIFEST.md"
+                   and p.relative_to(d).parts[0] not in nested)
     lines = [
         "# Results manifest",
         "",
@@ -330,8 +340,9 @@ def write_manifest() -> None:
         "`python scripts/make_results.py` (and `scripts/router_gate_vs_t.py` for `router_gate/`).",
         "",
         "Provenance: `evals/<arm>.json` are verbatim copies of `runs/<run>/<arm>/eval.json`;",
-        "`reference_10k/<arm>.json` are verbatim copies of Improving-CA-LoRA",
-        "`results/sdxl_cityscapes/<arm>/eval.json` (identical to its own MANIFEST);",
+        *(["`reference_10k/control_base.json` is a verbatim copy of", f"`{BASE_EVAL}`;"] if BASE_EVAL else [
+            "`reference_10k/<arm>.json` are verbatim copies of Improving-CA-LoRA",
+            "`results/sdxl_cityscapes/<arm>/eval.json` (identical to its own MANIFEST);"]),
         "`diagnosis_jaccard.json` is extracted from `runs/sdxl_cityscapes/diagnosis/diagnosis.json`",
         "(source sha256 inside the file). Checkpoints, measurements and generated images stay in the",
         "gitignored `runs/` and are not part of this repository.",
@@ -361,7 +372,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--base-eval", type=Path, default=None,
                         help="Report only this base-control eval.json, without the 10K reference arms")
     args = parser.parse_args(argv)
-    RUN, RUN_C1, RES, FIG, BASE_EVAL = args.run, args.run_c1, args.results_dir, args.figures_dir, args.base_eval
+    RUN, RUN_C1, BASE_EVAL = args.run, args.run_c1, args.base_eval
+    # write_manifest names files relative to the repo, so relative paths are read from it.
+    RES, FIG = (ROOT / args.results_dir).resolve(), (ROOT / args.figures_dir).resolve()
     if BASE_EVAL:
         for arm in list(REFERENCE):
             if arm != "control_base":

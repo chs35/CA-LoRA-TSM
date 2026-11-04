@@ -28,7 +28,8 @@ WEATHER = ["foggy", "night-time", "rainy", "snowy"]
 
 # (label, eval.json, description)
 ARMS = [
-    ("base", Path(BASE_EVAL) if BASE_EVAL else UPSTREAM / "control_base/eval.json", "base SDXL (0%), 상위 저장소 재사용"),
+    ("base", Path(BASE_EVAL) if BASE_EVAL else UPSTREAM / "control_base/eval.json",
+     "base SDXL (0%), 상위 저장소 같은 프로토콜 control 재사용" if BASE_EVAL else "base SDXL (0%), 상위 저장소 재사용"),
     ("No.1", RUN / "no1/eval.json", "n1 (t=81, 전 구간, 4K)" if BASE_EVAL else "n1 (t=81, 전 구간, 4K import)"),
     ("No.2", RUN / "no2/eval.json", "n4 하드 라우팅"),
     ("No.3", RUN / "no3/eval.json", "n1+n4, core n4, 라우터"),
@@ -165,6 +166,8 @@ def section_eval(out: list[str]) -> dict:
         rows.append([key, f(min(v), nd), f(max(v), nd), f(mean, nd), f(sd, nd), f(M["No.1"][key], nd), f(M["No.2"][key], nd)])
     out += table(["지표", "min", "max", "mean", "std (6 arm)", "No.1", "No.2"], rows)
 
+    if BASE_EVAL:  # the 10K rows were trained on the full train split: not this report's numbers
+        return M
     out += ["### 1.7 참고: 상위 저장소 10K step 단일 LoRA (직접 비교 대상 아님)", ""]
     rows = []
     for label, arm in REFS:
@@ -286,10 +289,27 @@ def section_cost(out: list[str]) -> None:
     foster = sorted({load(p)["final"]["elapsed"] for run in (RUN, C1) for p in (run / "experts").glob("*/train_summary.json")})
     asm = [load(RUN / "bundles" / n / "assemble_summary.json")["final"]["elapsed"] for _, n in BUNDLES
            if (RUN / "bundles" / n / "assemble_summary.json").exists()]
-    out += table(["항목", "횟수", "평균 (분)", "합계 (시간)"], [
+    rows = [
         ["fostering (train_summary 기준, 4K step)", str(len(foster)), f"{sum(foster) / len(foster) / 60:.1f}", f"{sum(foster) / 3600:.1f}"],
         ["라우터 학습 (1K step, batch 8)", str(len(asm)), f"{sum(asm) / len(asm) / 60:.1f}", f"{sum(asm) / 3600:.1f}"],
-    ])
+    ]
+    log = RUN / "campaign.log"
+    if BASE_EVAL and log.exists():  # wall time per stage from the runner's START/END lines
+        from datetime import datetime
+        started, spans = {}, {}
+        for line in log.read_text().splitlines():
+            parts = line.split()
+            if len(parts) >= 4 and parts[1] in ("START", "END") and parts[2].split(":")[0] in ("generate", "evaluate"):
+                when = datetime.strptime(parts[0], "%Y-%m-%dT%H:%M:%SZ")
+                if parts[1] == "START":
+                    started[parts[2]] = when
+                elif parts[3] == "rc=0" and parts[2] in started:
+                    spans.setdefault(parts[2].split(":")[0], []).append((when - started[parts[2]]).total_seconds())
+        for kind, label in (("generate", "생성 (900장, fp32 + TF32, campaign.log 벽시계)"), ("evaluate", "평가 (CLIP·CMMD, campaign.log 벽시계)")):
+            if spans.get(kind):
+                v = spans[kind]
+                rows.append([label, str(len(v)), f"{sum(v) / len(v) / 60:.1f}", f"{sum(v) / 3600:.1f}"])
+    out += table(["항목", "횟수", "평균 (분)", "합계 (시간)"], rows)
     if not BASE_EVAL:
         out += ["생성(900장 ≈ 3.9 h/arm, 15.5 s/장)과 CA 측정(76 min/t)은 로그 기반 수치로 `docs/RESULTS.md` §8 참고.", ""]
 
@@ -308,6 +328,12 @@ def main(argv: list[str] | None = None) -> None:
            f"- 구성당 900장 = in_domain 500 + 날씨 {len(proto['weather_conditions'])}조건({', '.join(proto['weather_conditions'])}) × 100.",
            f"- CMMD: {proto['clip_model']}, 참조 Cityscapes {proto['reference_split']} {proto['reference_num_images']}장, σ={proto['cmmd_sigma']}, ×{proto['cmmd_scale']:.0f}. "
            "CLIP-Score 같은 모델. mIoU 미진행.", ""]
+    subset = RUN / "training_subset.json"
+    if BASE_EVAL and subset.exists():
+        s = load(subset)
+        out[-1:-1] = [f"- 학습 데이터: train {s.get('source_size', '?')}장 중 무작위 {len(s['keys'])}장 "
+                      f"(seed {s.get('seed', '?')}, `{rel(subset)}`): {', '.join(s['keys'])}. "
+                      "fostering과 라우터 학습에만 쓰고, CA 측정·선택 집합은 전체 데이터 실험의 것을 그대로 쓴다."]
     section_eval(out)
     section_diagnosis(out)
     section_experts(out)
