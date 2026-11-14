@@ -1,5 +1,5 @@
 Vendored copy of calora (Improving-CA-LoRA reimplementation of CA-LoRA).
-Source: /workspace/Optimizing-CA-LoRA/src/calora (github.com/chs35/Optimizing-CA-LoRA)
+Source: /workspace/Improving-CA-LoRA/src/calora (github.com/chs35/Improving-CA-LoRA)
 Commit: db680c3 + the self-generated CA measurement changes of 2026-11-07
   (calora.data.selfgen, calora.ca.precision, calora.analysis.drift_data, measurement
   provenance headers; previously db680c3 as of 2026-11-03, before that 500c9ec).

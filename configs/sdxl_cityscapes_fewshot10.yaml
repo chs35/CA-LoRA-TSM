@@ -4,7 +4,7 @@
 #   - train.subset_size: the training loops (fostering, router) read 10 images, drawn from the
 #     whole train split and pinned in <run>/training_subset.json. Selections stay the ones
 #     measured on 256 images; generation prompts and the CMMD reference keep reading the full
-#     data. subset_seed 0 draws the same 10 images as Optimizing-CA-LoRA's few-shot campaign.
+#     data. subset_seed 0 draws the same 10 images as Improving-CA-LoRA's few-shot campaign.
 #   - bf16 autocast around the training forward, with fp32 weights, LoRA masters and Adam state.
 #   - TF32 for fp32 matmuls, in training and in generation. Generation stays fp32: bf16 sampling
 #     missed the pre-registered CLIP-cosine threshold in the sibling repo (0.98946 < 0.99).

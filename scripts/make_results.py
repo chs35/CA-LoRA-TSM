@@ -1,21 +1,21 @@
-"""README results: evidence copies, summary table, Jaccard and trade-off figures.
+"""Results: evidence copies, summary table, Jaccard and trade-off figures.
 
     python scripts/make_results.py --refresh   # copy evidence from runs/ (+ Improving-CA-LoRA) into results/
     python scripts/make_results.py             # rebuild everything below from results/ only
 
 ``--refresh`` copies, verbatim, every reportable ``<arm>/eval.json`` to
-``results/evals/<arm>.json`` and the Improving-CA-LoRA 10K-step reference evals to
-``results/reference_10k/<arm>.json``, and extracts the Jaccard part of
+``results/selfgen_fewshot10/evals/<arm>.json`` and the Improving-CA-LoRA 10K-step reference evals to
+``results/selfgen_fewshot10/reference_10k/<arm>.json``, and extracts the Jaccard part of
 ``runs/sdxl_cityscapes/diagnosis/diagnosis.json`` (written by ``scripts/diagnose_ca.py``;
-the full file is 15 MB of per-layer CA) to ``results/diagnosis_jaccard.json``.
+the full file is 15 MB of per-layer CA) to ``results/selfgen_fewshot10/diagnosis_jaccard.json``.
 
-The build step then writes, from ``results/`` alone:
+The build step then writes, from ``results/selfgen_fewshot10/`` alone:
 
-* ``results/summary.csv`` and ``results/summary.md`` — one row per configuration;
-* ``figures/jaccard_matrix.png`` — t × t Jaccard of the top-2 % style-CA head sets;
-* ``figures/tradeoff_scatter.png`` — CMMD vs weather CLIP-Score, same axes as
-  Improving-CA-LoRA's ``figures/tradeoff_scatter.png``;
-* ``results/MANIFEST.md`` — sha256 of every file in ``results/`` and ``figures/``.
+* ``results/selfgen_fewshot10/summary.csv`` and ``summary.md`` — one row per configuration;
+* ``results/figures/jaccard_matrix.png`` — t × t Jaccard of the top-2 % style-CA head sets;
+* ``results/figures/tradeoff_scatter.png`` — CMMD vs weather CLIP-Score, same axes as
+  Improving-CA-LoRA's trade-off figure;
+* ``MANIFEST.md`` — sha256 of every file written.
 
 Weather CLIP SEM is the per-image sampling error of the mean of the four condition means,
 ``sqrt(Σ_c s_c² / n_c) / 4``, from the stds stored in eval.json. It is *not* a seed-to-seed
@@ -33,10 +33,10 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RES = ROOT / "results"
-FIG = ROOT / "figures"
+RES = ROOT / "results" / "selfgen_fewshot10"
+FIG = ROOT / "results" / "figures"
 RUNS = ROOT / "runs"
-UPSTREAM = Path("/workspace/Optimizing-CA-LoRA/Improving-CA-LoRA/results/sdxl_cityscapes")
+UPSTREAM = Path("/workspace/Improving-CA-LoRA/results/sdxl_cityscapes")
 RUN, RUN_C1 = "sdxl_cityscapes", "sdxl_c1"
 #: When set, the base control's eval.json comes from here instead of UPSTREAM.
 BASE_EVAL: Path | None = None
@@ -70,7 +70,7 @@ REFERENCE = {
     "E_all": ("10K full attention", "LoRA on all attention, 10K"),
 }
 CONDITIONS = ("foggy", "night-time", "rainy", "snowy")
-# Halving boundaries actually used (design §3.3 / DECISION.md): interval starts.
+# Halving boundaries actually used: interval starts.
 BOUNDARIES = {"n5": 62, "n4/n5": 125, "n3/n4/n5": 250, "all m>1": 500}
 
 
@@ -185,7 +185,7 @@ def write_tables(rows: list[dict]) -> None:
     ref = [r for r in rows if r["group"] == "reference"]
     note = ("Base control (no training, same protocol):" if BASE_EVAL else
             "Reference only — Improving-CA-LoRA, single LoRA trained 10K steps; "
-            "not a direct comparison (design §5.1):")
+            "not a direct comparison:")
     text = "\n".join([head, sep, *map(line, main), "", note, "", head, sep, *map(line, ref)])
     (RES / "summary.md").write_text(text + "\n")
     print(text)
@@ -336,7 +336,7 @@ def write_manifest() -> None:
     lines = [
         "# Results manifest",
         "",
-        "sha256 of every file in `results/` and `figures/` (this file excluded). Regenerate with",
+        "sha256 of every file in `results/` (this file excluded). Regenerate with",
         "`python scripts/make_results.py` (and `scripts/router_gate_vs_t.py` for `router_gate/`).",
         "",
         "Provenance: `evals/<arm>.json` are verbatim copies of `runs/<run>/<arm>/eval.json`;",

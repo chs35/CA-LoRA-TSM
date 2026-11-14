@@ -1,9 +1,9 @@
-# SDXL + Cityscapes on a single A100 (design §3, §7).
+# SDXL + Cityscapes on a single A100.
 #
 # CA measurement, selection ratio (2%), rank (64), data and the training prompt
 # follow CA-LoRA via the Improving-CA-LoRA reimplementation (vendored calora).
 # Fostering trains every expert for 4K steps on its own timestep interval; the
-# n=1 expert is the same-step internal baseline (design §5.1 No.1), not the
+# n=1 expert is the same-step internal baseline (No.1), not the
 # paper's 10K number.
 name: sdxl_cityscapes
 output_dir: runs
@@ -63,7 +63,7 @@ intervals:
   boundaries: {}
 
 interval_select:
-  mode: representative     # (A) one t per interval — user decision 2026-09-15 after the §4 diagnosis (see runs/sdxl_cityscapes/diagnosis/DECISION.md)
+  mode: representative     # (A) one t per interval — decided 2026-09-15 after the CA diagnosis
   representative:          # used only when mode: representative — one t per interval, lowest first
     n1: [81]
     n3: [81, 375, 750]
@@ -71,7 +71,7 @@ interval_select:
     n5: [41, 81, 201, 375, 750]
   fixed_timestep: 81       # mode: fixed = control C1 (every interval selects at t=81)
 
-train:                     # fostering: per expert, design §7
+train:                     # fostering: per expert
   lora:
     rank: 64
     alpha: 64
@@ -89,13 +89,13 @@ train:                     # fostering: per expert, design §7
   seed: 0
   checkpoint_every: 1000
   log_every: 50
-  stability_every: 0       # CA drift is out of scope (design §1)
+  stability_every: 0       # CA drift is out of scope
 
-assemble:                  # router training, experts frozen (design §3.2 step 4)
+assemble:                  # router training, experts frozen
   sets: [n1, n4]
   core: n4
   max_steps: 1000
-  batch_size: 8            # user decision 2026-09-16: batch-1 L_Diff is dominated by the (image, t) draw, so the router gradient needs a larger batch; 8 if it fits the A100, else 4. Steps stay 1000.
+  batch_size: 8            # decided 2026-09-16: batch-1 L_Diff is dominated by the (image, t) draw, so the router gradient needs a larger batch; 8 if it fits the A100, else 4. Steps stay 1000.
   learning_rate: 1.0e-3
   init_gate: 1.0           # raw router output; start from the plain sum of active experts
   cache_latents: false     # per-step pixel crop + VAE encode, as the reported full-data run did

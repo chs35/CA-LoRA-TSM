@@ -11,9 +11,9 @@ VAE-encodes them once into the latent cache next to them. Re-running it is
 cheap: images that are present and pass their sha256 are not generated again,
 so it doubles as the resume path after a crash and as the integrity check.
 
-Copied from Optimizing-CA-LoRA/scripts/generate_selfgen.py; the config is
+Copied from Improving-CA-LoRA/scripts/generate_selfgen.py; the config is
 resolved through ``catsm.cli``. The set used for this project's selections is
-the one made in Optimizing-CA-LoRA (runs/ca_selfgen_images).
+the one made in Improving-CA-LoRA (runs/ca_selfgen_images).
 """
 
 from __future__ import annotations

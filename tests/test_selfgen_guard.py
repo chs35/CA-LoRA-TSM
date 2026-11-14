@@ -1,7 +1,7 @@
 """Selections must come from CA measured on base-model self-generated images.
 
 CA-LoRA (Sec. 3.2) measures CA on x0 the pretrained model generated from c; the
-measurement is made once in Optimizing-CA-LoRA and imported. These tests pin the
+measurement is made once in Improving-CA-LoRA and imported. These tests pin the
 two gates: `select` refuses measurements that are not `data_source=selfgen`
 (or that mix sources), and `foster` refuses a selection that does not say it
 came from such measurements.

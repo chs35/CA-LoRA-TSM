@@ -2,7 +2,7 @@
 # Run fostering jobs one after another. Each argument is RUN_NAME:EXPERT[:SELECTION_JSON].
 #   scripts/foster_queue.sh sdxl_cityscapes:n4_i0:runs/sdxl_cityscapes/selections/n1/n1_i0.json sdxl_c1:n4_i0
 # Skips an expert whose lora-final.safetensors already exists. Logs to runs/<run>/logs/foster_<expert>.out.
-# Launch with nohup and record the PID via pgrep (see docs/GPU_RUNBOOK.md pod checklist).
+# Launch with nohup and record the PID via pgrep.
 # Since 2026-11-07 `foster` refuses a selection not measured on self-generated images; to
 # rerun a historical (real-image) campaign set FOSTER_EXTRA=--allow-legacy-selection.
 set -u

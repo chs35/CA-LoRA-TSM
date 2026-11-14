@@ -1,4 +1,4 @@
-"""Per-interval CA head selection (design §3.2, modes (A)/(B), control C1).
+"""Per-interval CA head selection (modes (A)/(B), control C1).
 
 The CA measurements themselves are calora's (``scripts/measure_ca.py`` →
 ``<run_dir>/measurements/t{t:04d}.safetensors``); this module only decides which
@@ -65,7 +65,7 @@ def load_measurements(
             f"Measurements under {directory} have data_source="
             f"{provenance.get('data_source')!r}; selections must come from "
             f"{require_source!r} measurements (CA on base-model self-generated images). "
-            "Import runs/ca_selfgen from Optimizing-CA-LoRA "
+            "Import runs/ca_selfgen from Improving-CA-LoRA "
             "(scripts/ops/import_measurements.sh), or pass --allow-legacy-measurements to "
             "re-read a historical run."
         )

@@ -5,7 +5,7 @@
     python scripts/generate_images.py --config ... --lora runs/sdxl_cityscapes/experts/n1_i0/lora-final.safetensors --run-name n1_alone
     python scripts/generate_images.py --config ...                       # base model control
 
-Copied from Optimizing-CA-LoRA/scripts/generate_images.py with one substantive
+Copied from Improving-CA-LoRA/scripts/generate_images.py with one substantive
 addition: ``--bundle``. A bundle's experts only act when the gate is set for the
 current timestep, and the diffusers pipeline calls the UNet directly, so a bundle
 loaded without the hook below would silently sample the *base* model. The hook

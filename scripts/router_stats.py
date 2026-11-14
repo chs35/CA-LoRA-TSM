@@ -11,7 +11,7 @@ mean / min / max, fraction of negative gates, and the same grouped by UNet block
 ``fc.weight @ mean(z_t)`` is zero at init and is reported through the weight norm only;
 the exact per-sample gate needs latents (``TSMAssembly.gate_for``).
 
-Stage 4 acceptance check (docs/GPU_RUNBOOK.md): ``router.bias_moved`` must be true,
+Stage 4 acceptance check: ``router.bias_moved`` must be true,
 i.e. ``fc.bias`` left its initial value ``init_gate``.
 """
 

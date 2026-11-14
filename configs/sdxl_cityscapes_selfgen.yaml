@@ -7,17 +7,17 @@
 # expert and router built on them -- are redone under this name.
 #
 # This project does not measure on its own: the measurement is made once in
-# Optimizing-CA-LoRA (configs/ca_selfgen.yaml -> runs/ca_selfgen/measurements, the
+# Improving-CA-LoRA (configs/ca_selfgen.yaml -> runs/ca_selfgen/measurements, the
 # 20 t below) and imported:
 #   bash scripts/ops/import_measurements.sh \
-#       /workspace/Optimizing-CA-LoRA/runs/ca_selfgen/measurements sdxl_cityscapes_selfgen
+#       /workspace/Improving-CA-LoRA/runs/ca_selfgen/measurements sdxl_cityscapes_selfgen
 # after which `catsm.cli select` refuses anything but data_source=selfgen, and
 # `foster` refuses a selection that does not carry it. The measure.* block below
 # only documents what the imported files are (the timesteps the diagnosis and
 # aggregate mode see); it is not used to measure.
 #
 # The interval representatives (interval_select.representative) are inherited
-# unchanged from the real-image decision of 2026-09-14 -- user decision 2026-11-07:
+# unchanged from the real-image decision of 2026-09-14 -- decided 2026-11-07:
 # run the pipeline on the self-generated measurement with the existing
 # representatives, no re-decision (scripts/ops/run_selfgen_chain.sh). They were a
 # visual judgement on the old measurements; scripts/diagnose_ca.py on the new set

@@ -4,8 +4,8 @@
 
 With halving boundaries several experts of different schemes coincide (same [t_lo, t_hi],
 same representative t, hence the same selection sha): n4_i1=n5_i2, n3_i1=n4_i2=n5_i3,
-n3_i2=n4_i3=n5_i4. Training them separately would only add GPU non-determinism (user
-decision 2026-09-15: train once, copy the weights, re-stamp the metadata). The copy keeps
+n3_i2=n4_i3=n5_i4. Training them separately would only add GPU non-determinism (decided
+2026-09-15: train once, copy the weights, re-stamp the metadata). The copy keeps
 every tensor bit-identical and rewrites only ``expert`` / ``interval_scheme`` in the
 safetensors header (plus ``shared_from``), so ``load_expert_into`` accepts it under the
 new name. Refuses when the target's selection sha or interval differs from the source.
@@ -65,7 +65,7 @@ def main():
         shutil.copy(sel_path, dst_dir / "selection.json")
         (dst_dir / "SHARED_FROM.json").write_text(json.dumps({
             "shared_from": a.src, "source_file": str(src_file), "source_sha256": new_meta["shared_from_sha256"],
-            "reason": "same interval and selection sha; weights copied bit-identical, metadata re-stamped (user decision 2026-09-15)",
+            "reason": "same interval and selection sha; weights copied bit-identical, metadata re-stamped (decided 2026-09-15)",
         }, indent=2))
         # verify the copy reads back identically
         back = load_file(str(dst_dir / "lora-final.safetensors"))

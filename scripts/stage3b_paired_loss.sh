@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Paired base-vs-expert L_Diff on the final experts (user decision 2026-09-16: cheap, low expectations).
+# Paired base-vs-expert L_Diff on the final experts (decided 2026-09-16: cheap, low expectations).
 # Same 96 (image, t, noise) triples per interval (scripts/paired_loss.py, seed 12345), three comparisons:
 #   (a) each unique trained expert on its own interval          -> experts/<e>/paired_loss.json
 #   (b) n1_i0 (whole-range expert) restricted to that interval  -> experts/n1_i0/lora-final.paired_loss_t<lo>-<hi>.json

@@ -17,7 +17,7 @@ so every module's gate is also weighted by the Frobenius norm of the active expe
 expert set (the core set enters with weight 1). Only the VAE and the bundle are
 loaded, not the UNet, so this runs on CPU (≈30 s per image to encode on 2 cores).
 
-Writes ``results/router_gate/<arm>.json`` and ``figures/router_gate_vs_t.png``.
+Writes ``results/selfgen_fewshot10/router_gate/<arm>.json`` and ``results/figures/router_gate_vs_t.png``.
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--resolution", type=int, default=1024)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--out-json", default=None)
-    parser.add_argument("--out-png", default=str(ROOT / "figures/router_gate_vs_t.png"))
+    parser.add_argument("--out-png", default=str(ROOT / "results/figures/router_gate_vs_t.png"))
     args = parser.parse_args(argv)
 
     state, meta = load_bundle(Path(args.bundle))
@@ -181,7 +181,7 @@ def main(argv: list[str] | None = None) -> None:
     report["per_set"][core] = {"weighted_mean": weighted[core],
                                "weighted_by_core_interval": by_interval(weighted[core], core)}
 
-    out_json = Path(args.out_json or ROOT / f"results/router_gate/{args.arm}.json")
+    out_json = Path(args.out_json or ROOT / f"results/selfgen_fewshot10/router_gate/{args.arm}.json")
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(json.dumps(report, indent=1))
     print(f"wrote {out_json}")

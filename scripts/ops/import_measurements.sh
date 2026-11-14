@@ -1,12 +1,12 @@
 #!/bin/bash
-# Import the self-generated CA measurements made once in Optimizing-CA-LoRA.
+# Import the self-generated CA measurements made once in Improving-CA-LoRA.
 #
 #   bash scripts/ops/import_measurements.sh \
-#       /workspace/Optimizing-CA-LoRA/runs/ca_selfgen/measurements sdxl_cityscapes_selfgen
+#       /workspace/Improving-CA-LoRA/runs/ca_selfgen/measurements sdxl_cityscapes_selfgen
 #
 # Since 2026-11-07 this project does not measure CA itself: the paper measures it
 # on images the base model generated (CA-LoRA Sec. 3.2), and that measurement is
-# shared with Improving-CA-LoRA and Hierarchial-CFG. This copies every
+# shared with Improving-CA-LoRA and Hierarchical-CFG. This copies every
 # t*.safetensors (full and _half*) plus SHA256SUMS into runs/<run>/measurements/,
 # verifies the copy byte for byte against the source's SHA256SUMS (written by the
 # source's scripts/ops/verify_measurements.py), checks that every file loads at

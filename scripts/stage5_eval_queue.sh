@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stage 5 (evaluation) queue: generate 900 images per configuration, then CMMD + CLIP-Score.
-#   scripts/stage5_eval_queue.sh no1 no2 no3 c1               # main claim (docs/GPU_RUNBOOK.md §5)
+#   scripts/stage5_eval_queue.sh no1 no2 no3 c1               # main claim
 #   SMOKE=1 scripts/stage5_eval_queue.sh no1                  # 2 in-domain + 4 weather images, arm <name>_smoke
 #   SEED=1 scripts/stage5_eval_queue.sh no3 no1               # generation-seed replicate, arm <name>_s1
 #   scripts/stage5_eval_queue.sh base                         # base SDXL control (no adapter), 900 images

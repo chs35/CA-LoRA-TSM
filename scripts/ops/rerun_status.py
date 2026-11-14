@@ -6,7 +6,7 @@ Read-only: parses campaign.log and the stage logs of scripts/ops/run_fewshot10.s
 A stage's duration comes from, in order: its own progress so far, the mean of the
 finished stages of that kind, the rates measured by the tensor-core gate, and the
 planning estimates below. Before the run starts, its start is taken from the end of
-Optimizing-CA-LoRA's campaign, which holds the GPU.
+Improving-CA-LoRA's campaign, which holds the GPU.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from pathlib import Path
 KST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parents[2]
 RUN, RUN_C1 = "sdxl_cityscapes_fewshot10", "sdxl_c1_fewshot10"
-SIBLING = Path("/workspace/Optimizing-CA-LoRA")
+SIBLING = Path("/workspace/Improving-CA-LoRA")
 
 FOSTERS = [(RUN, e) for e in ("n1_i0", "n4_i0", "n3_i0", "n5_i1", "n5_i0", "n4_i1", "n4_i2", "n4_i3")] + [
     (RUN_C1, e) for e in ("n4_i0", "n4_i1", "n4_i2", "n4_i3")

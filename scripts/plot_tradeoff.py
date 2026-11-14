@@ -1,6 +1,6 @@
 """Alignment-vs-controllability scatter (CMMD vs weather CLIP-Score) from the eval.json files.
 
-    python scripts/plot_tradeoff.py            # writes docs/figures/cmmd_vs_weather_clip.png
+    python scripts/plot_tradeoff.py            # writes results/figures/cmmd_vs_weather_clip.png
 """
 from __future__ import annotations
 import json
@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 R = ROOT / "runs/sdxl_cityscapes"
-U = Path("/workspace/Optimizing-CA-LoRA/runs/sdxl_cityscapes")
+U = Path("/workspace/Improving-CA-LoRA/runs/sdxl_cityscapes")
 ARMS = [("base", U / "control_base/eval.json", "ref"), ("No.1", R / "no1/eval.json", "single"), ("No.2", R / "no2/eval.json", "hard"),
         *[(f"No.{i}", R / f"no{i}/eval.json", "router") for i in range(3, 10)],
         ("C1", ROOT / "runs/sdxl_c1/c1/eval.json", "hard"), ("C2-n2", R / "c2n2/eval.json", "ctrl"), ("C2-n3", R / "c2/eval.json", "ctrl")]
@@ -60,7 +60,7 @@ def main():
     zx.set_xlabel("CMMD", color="#1a1a19")
     zx.set_title("Zoom: t=81-selection cluster", loc="left", fontsize=12)
     fig.tight_layout()
-    out = ROOT / "docs/figures/cmmd_vs_weather_clip.png"
+    out = ROOT / "results/figures/cmmd_vs_weather_clip.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out)
     print(f"wrote {out}")

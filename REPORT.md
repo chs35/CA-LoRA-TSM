@@ -1,8 +1,9 @@
 # CA-LoRA의 $t$ 민감성과 TSM 혼합 (SDXL, Cityscapes)
+정희승 (Heeseung Chung), 2026년 11월.
 
-## 1. $t$에 민감한 어답터
+## 1. $t$에 민감한 어댑터
 
-CA-LoRA(Park et al., CVPR 2025)는 text-to-image diffusion 모델을 타깃 도메인에 맞추면서, 프롬프트로 장면을 바꾸는 능력은 남기려는 어답터다. 모델 전체를 미세조정하면 생성 이미지는 타깃 도메인에 가까워지지만 "안개 낀", "밤" 같은 프롬프트를 따르지 않게 된다. CA-LoRA는 attention head마다 concept-awareness(CA)를 재고, CA가 높은 상위 2% head에만 LoRA를 붙인다.
+CA-LoRA(Park et al., CVPR 2026)는 text-to-image diffusion 모델을 타깃 도메인에 맞추면서, 프롬프트로 장면을 바꾸는 능력은 남기려는 어댑터다. 모델 전체를 미세조정하면 생성 이미지는 타깃 도메인에 가까워지지만 "안개 낀", "밤" 같은 프롬프트를 따르지 않게 된다. CA-LoRA는 attention head마다 concept-awareness(CA)를 재고, CA가 높은 상위 2% head에만 LoRA를 붙인다.
 
 $$\mathrm{CA}(t) = \mathbb{E}\left[\frac{\lVert \nabla L_{\text{Concept}} \rVert}{\lVert \nabla L_{\text{Diff}} \rVert}\right]$$
 
@@ -12,7 +13,7 @@ CA는 $t$의 함수인데 CA-LoRA는 $t$ 하나에서 잰 값으로 head를 정�
 
 $t$를 바꾸면 선택되는 head가 바뀐다. SDXL에서 20개 $t$로 CA를 재고, $t$마다 상위 2% head 집합(10,400개 중 208개)을 구해 비교했다. $t = 81$의 집합과의 Jaccard 유사도는 $t = 201$에서 0.75, $t = 375$에서 0.49, $t = 500$에서 0.20, $t = 750$에서 0.04다. $t = 81$에서 표본을 절반씩 나눠 따로 잰 두 집합의 유사도가 0.88이므로, 이 차이는 측정 오차보다 크다.
 
-선택이 바뀌면 학습 결과도 바뀐다. 결과는 두 지표로 본다. CMMD는 생성 이미지와 Cityscapes 이미지의 분포 거리이고 낮을수록 도메인에 가깝다. weather CLIP-Score는 날씨 프롬프트(안개, 밤, 비, 눈)로 생성한 이미지와 그 프롬프트의 CLIP 유사도이고 높을수록 프롬프트를 따른다. 같은 학습 이미지 10장으로 LoRA 하나를 학습하면, $t = 81$로 고른 head에서는 CMMD 1.421, weather CLIP-Score 21.43이 나오고 $t = 201$로 고른 head에서는 CMMD 1.584, weather CLIP-Score 19.13이 나온다. Jaccard가 0.75인 두 선택 사이에서 두 지표가 모두 달라진다. 이 두 LoRA는 3절의 실험보다 길게 학습한 것이어서 3절의 숫자와 직접 비교되지 않는다.
+선택이 바뀌면 학습 결과도 바뀐다. 결과는 두 지표로 본다. CMMD는 생성 이미지와 Cityscapes 이미지의 분포 거리이고 낮을수록 도메인에 가깝다. weather CLIP-Score는 날씨 프롬프트(안개, 밤, 비, 눈)로 생성한 이미지와 그 프롬프트의 CLIP 유사도이고 높을수록 프롬프트를 따른다. 같은 학습 이미지 10장으로 LoRA 하나를 학습하면, $t = 81$로 고른 head에서는 CMMD 1.421, weather CLIP-Score 21.43이 나오고 $t = 201$로 고른 head에서는 CMMD 1.584, weather CLIP-Score 19.13이 나온다. Jaccard가 0.75인 두 선택 사이에서 두 지표가 모두 달라진다. 이 두 LoRA는 10,000 step으로, 3절의 실험(expert 하나에 4,000 step)보다 길게 학습한 것이어서 3절의 숫자와 직접 비교되지 않는다.
 
 $t$ 하나가 모든 noise 수준에 맞는 head를 고른다는 근거는 없다. 모델이나 데이터가 바뀌면 그 $t$를 다시 찾아야 한다. 그래서 $t$ 하나에 의존하지 않고, noise 구간마다 그 구간의 $t$로 head를 고르는 방식을 시험했다.
 
@@ -47,7 +48,7 @@ SDXL을 Cityscapes 이미지 10장으로 학습하고, 구성마다 Cityscapes �
 | TSM 혼합 | 구간별 선택 + 전 구간 81 | 라우터 | 1.362 | 22.29 |
 | TSM 혼합, $[500, 999]$의 구간 expert 제외 | 81, 201, 375 + 전 구간 81 | 라우터 | 1.327 | 23.51 |
 
-![CMMD와 weather CLIP-Score](figures/selfgen_fewshot10/report_tradeoff.png)
+![CMMD와 weather CLIP-Score](results/figures/report_tradeoff.png)
 
 그림의 점은 표의 구성이다. 속이 빈 삼각형은 3구간, 5구간 expert 묶음을 더 섞은 구성이고, 점선은 혼합 없는 두 구간 expert 구성을 이은 것이다.
 
@@ -64,3 +65,14 @@ $[500, 999]$의 구간 expert를 빼면 두 지표가 함께 나아진다. 이 �
 expert 묶음을 늘려도 결과는 달라지지 않는다. 3구간, 5구간 묶음을 더 섞은 다섯 구성은 CMMD 1.345~1.430, weather CLIP-Score 21.86~22.61로 TSM 혼합(1.362, 22.29) 주변에 있다. 전 구간 expert를 빼고 구간 expert 묶음만 섞은 구성은 CMMD가 3.216이고 생성 이미지의 장면 구조가 무너진다.
 
 혼합이 $t$ 민감성을 줄였는지는 재지 않았다. 그러려면 구간마다 고른 $t$를 바꿔 다시 학습하고 결과가 얼마나 달라지는지 봐야 한다. 이 실험의 구성은 모두 $t$ 조합 하나(81, 201, 375, 750)에서 나왔다.
+
+## 참고문헌
+
+- M. Park et al. "Concept-Aware LoRA for Domain-Aligned Segmentation Dataset Generation." CVPR 2026. arXiv:2503.22172. (CA-LoRA)
+- S. Zhuang et al. "TimeStep Master: Asymmetrical Mixture of Timestep LoRA Experts for Versatile and Efficient Diffusion Models in Vision." ICML 2025. arXiv:2503.07416. (TSM)
+- D. Podell et al. "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis." ICLR 2024. arXiv:2307.01952.
+- M. Cordts et al. "The Cityscapes Dataset for Semantic Urban Scene Understanding." CVPR 2016. arXiv:1604.01685.
+- E. J. Hu et al. "LoRA: Low-Rank Adaptation of Large Language Models." ICLR 2022. arXiv:2106.09685.
+- S. Jayasumana et al. "Rethinking FID: Towards a Better Evaluation Metric for Image Generation." CVPR 2024. arXiv:2401.09603. (CMMD)
+- J. Hessel et al. "CLIPScore: A Reference-free Evaluation Metric for Image Captioning." EMNLP 2021. arXiv:2104.08718.
+- 1절의 LoRA 하나 실험($t = 81$, $t = 201$): [Improving-CA-LoRA](https://github.com/chs35/Improving-CA-LoRA).

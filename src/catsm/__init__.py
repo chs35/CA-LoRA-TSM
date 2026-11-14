@@ -1,4 +1,4 @@
-"""CA-LoRA with TimeStep Master (docs/design.md).
+"""CA-LoRA with TimeStep Master.
 
 Per-interval concept-aware head selection, one sliced LoRA expert per timestep
 interval (Fostering, trained only on that interval's t), and a router that

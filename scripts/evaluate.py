@@ -5,7 +5,7 @@
 Reads ``<run_dir>/<arm>/generated/manifest.json`` from ``scripts/generate_images.py``,
 exports the CMMD reference set once per run directory, and writes ``<arm>/eval.json``.
 
-Copied from Optimizing-CA-LoRA/scripts/evaluate.py; the config is resolved
+Copied from Improving-CA-LoRA/scripts/evaluate.py; the config is resolved
 through ``catsm.cli`` so this project's extra sections are accepted, and the
 manifest's ``routing`` block (bundle sets / core / disabled) is carried into
 ``eval.json``. mIoU is deliberately not computed (no label generator; same

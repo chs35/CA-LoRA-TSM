@@ -6,7 +6,7 @@ Needs the GPU to itself: the rates it records feed the schedule. Writes
 runs/<name>_gate/tensor_core_gate.json and exits 0 only if every check passes.
 
 1. Flags, dtypes and the share of GEMM/conv/attention kernel time on tensor-core
-   kernels, the check Hierarchial-CFG runs in src/hcfg/gpu_check.py.
+   kernels, the check Hierarchical-CFG runs in src/hcfg/gpu_check.py.
 2. Fostering: s/step and peak VRAM over real steps, in a fresh process.
 3. Router: the largest set (No.9), batch 8. Gradient checkpointing stays off if the
    peak stays below ROUTER_VRAM_LIMIT_MIB, and is switched on otherwise.
@@ -54,7 +54,7 @@ TC_MARKERS = ("16816", "1688", "tensorop", "xmma", "hmma", "bf16", "tf32", "flas
 MATH_MARKERS = ("gemm", "conv", "fprop", "dgrad", "wgrad", "flash", "fmha", "attention", "xmma",
                 "cutlass", "implicit")
 FULL_RUN = REPO / "runs" / "sdxl_cityscapes"
-SIBLING_SUBSET = Path("/workspace/Optimizing-CA-LoRA/runs/sdxl_cityscapes_fewshot10/training_subset.json")
+SIBLING_SUBSET = Path("/workspace/Improving-CA-LoRA/runs/sdxl_cityscapes_fewshot10/training_subset.json")
 PY = sys.executable
 
 

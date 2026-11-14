@@ -5,7 +5,7 @@
     "v3 replaces both axes with the paper's own sets, quoted verbatim from",
     "arXiv 2503.22172 Appendix B.2. The v1/v2 sets were our own reconstruction,",
     "written before the appendix was checked; reproduction fidelity wins over a",
-    "set we designed ourselves (user decision, 2026-07-28).",
+    "set we designed ourselves (decided 2026-07-28).",
     "IMPORTANT — these templates carry no {caption} placeholder. The paper's c_Aug",
     "is a rewrite of the *fixed* training prompt ('photorealistic first-person",
     "urban street view'), not a suffix appended to a per-image caption, so the",

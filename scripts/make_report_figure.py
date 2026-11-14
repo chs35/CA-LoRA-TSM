@@ -1,7 +1,7 @@
 """Trade-off figure for REPORT.md, with reader-facing names instead of arm ids.
 
 Reads the eval.json copies under ``results/selfgen_fewshot10/evals`` and writes
-``figures/selfgen_fewshot10/report_tradeoff.png``. CPU only.
+``results/figures/report_tradeoff.png``. CPU only.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 EVALS = ROOT / "results" / "selfgen_fewshot10" / "evals"
-OUT = ROOT / "figures" / "selfgen_fewshot10" / "report_tradeoff.png"
+OUT = ROOT / "results" / "figures" / "report_tradeoff.png"
 
 BLUE, ORANGE, AQUA, YELLOW = "#2a78d6", "#eb6834", "#1baf7a", "#eda100"
 INK, MUTED, GRID = "#1a1a19", "#6b6a63", "#e6e5df"

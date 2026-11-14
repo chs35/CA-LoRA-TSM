@@ -1,14 +1,14 @@
 #!/bin/bash
-# Unattended hand-off (user instruction 2026-11-07): when the self-generated CA measurement in
-# Optimizing-CA-LoRA finishes on this GPU server, run CA-LoRA-TSM's whole pipeline on it.
+# Unattended hand-off (2026-11-07): when the self-generated CA measurement in
+# Improving-CA-LoRA finishes on this GPU server, run CA-LoRA-TSM's whole pipeline on it.
 #
 #   1. wait for runs/ca_selfgen/campaign.log to say CAMPAIGN END (stop on HALT) and the GPU to idle
 #   2. import the measurements into runs/sdxl_cityscapes_selfgen and runs/sdxl_c1_selfgen
-#   3. selections: n1/n3/n4/n5 with the existing interval representatives (user: "run the
-#      pipeline on the measured set" -- no re-decision), C1 = n4 at fixed t=81
+#   3. selections: n1/n3/n4/n5 with the existing interval representatives (run the
+#      pipeline on the measured set; no re-decision), C1 = n4 at fixed t=81
 #   4. the 10-image campaign (scripts/ops/run_fewshot10.sh) under new run names, reusing the
 #      tensor-core gate of 2026-11-02 and the real-val CMMD reference export
-# Also drops the t=81 style selection where Hierarchial-CFG expects it.
+# Also drops the t=81 style selection where Hierarchical-CFG expects it.
 #
 #   nohup scripts/ops/run_selfgen_chain.sh > runs/selfgen_chain.out 2>&1 &
 # Resumable: every step is idempotent (import verifies, select rewrites the same files,
@@ -16,9 +16,9 @@
 set -u -o pipefail
 cd "$(dirname "$0")/../.."
 source scripts/env.sh
-SRC_REPO=${SRC_REPO:-/workspace/Optimizing-CA-LoRA}
+SRC_REPO=${SRC_REPO:-/workspace/Improving-CA-LoRA}
 SRC_RUN=$SRC_REPO/runs/ca_selfgen
-HCFG_SEL=${HCFG_SEL:-/workspace/Hierarchial-CFG/configs/selections/selfgen_style_t81.json}
+HCFG_SEL=${HCFG_SEL:-/workspace/Hierarchical-CFG/configs/selections/selfgen_style_t81.json}
 LOG=runs/selfgen_chain.log
 say() { echo "$(date -u +%FT%TZ) $*" | tee -a "$LOG"; }
 halt() { say "HALT $*"; exit 1; }
@@ -34,7 +34,7 @@ done
 while pgrep -f "run_ca_selfgen.sh|measure_ca.py|select_projections.py" > /dev/null; do sleep 30; done
 say "CA measurement finished: $(grep 'CAMPAIGN END' "$SRC_RUN/campaign.log" | tail -1)"
 
-# Hierarchial-CFG reads its CA-LoRA selection from its own configs/ (copy, verified).
+# Hierarchical-CFG reads its CA-LoRA selection from its own configs/ (copy, verified).
 if [ -s "$SRC_RUN/selection_A_t81_style.json" ] && [ -d "$(dirname "$HCFG_SEL")" ]; then
   cp "$SRC_RUN/selection_A_t81_style.json" "$HCFG_SEL.tmp" && mv "$HCFG_SEL.tmp" "$HCFG_SEL"
   cmp -s "$SRC_RUN/selection_A_t81_style.json" "$HCFG_SEL" || halt "HCFG selection copy does not verify"

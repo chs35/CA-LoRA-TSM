@@ -14,11 +14,11 @@ real images as every run before 2026-11-07 did.
 One safetensors file per timestep is written to ``<run_dir>/measurements/``, with
 the x0 source and numeric regime in its ``provenance`` header.
 
-Copied from Optimizing-CA-LoRA/scripts/measure_ca.py; the only change is that
+Copied from Improving-CA-LoRA/scripts/measure_ca.py; the only change is that
 the config is resolved through ``catsm.cli`` so this project's extra sections
 (``intervals``, ``interval_select``, ``assemble``) are accepted. This project does
 not measure on its own any more: the self-generated measurement is made once in
-Optimizing-CA-LoRA (runs/ca_selfgen) and imported with
+Improving-CA-LoRA (runs/ca_selfgen) and imported with
 scripts/ops/import_measurements.sh. The copy is kept in step so a local
 re-measurement would follow the same protocol.
 """

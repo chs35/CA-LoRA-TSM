@@ -6,7 +6,7 @@ Weather CLIP 22.58 is in line with the other routers (22.2–22.6).
 
 ## What the images show
 
-`figures/selfgen_fewshot10/no6_samples.png`: rows are new No.2, new No.3, new No.6 and old No.6, same prompts and seeds.
+`results/figures/no6_samples.png`: rows are new No.2, new No.3, new No.6 and old No.6, same prompts and seeds.
 New No.6 is not black/flat, but scene structure breaks up in most frames: fragmented façades,
 smeared objects, colour patches and overlay-like artefacts. The old run had a few texture-collapse frames;
 here the distortion is pervasive, which is consistent with a CMMD near the base control (4.08).
