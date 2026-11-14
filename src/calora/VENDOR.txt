@@ -1,4 +1,4 @@
 Copy of src/calora from Improving-CA-LoRA (github.com/chs35/Improving-CA-LoRA),
 the reimplementation of CA-LoRA that this project builds on.
-Identical to that repository's src/calora as of its release cleanup (2026-11-14).
+Identical to that repository's src/calora as of 2026-11-14.
 Do not edit here; all CA-LoRA-TSM code lives in src/catsm.

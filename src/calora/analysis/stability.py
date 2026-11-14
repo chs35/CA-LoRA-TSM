@@ -616,7 +616,7 @@ def make_stability_callback(
         if torch.cuda.is_available():
             # The merged-LoRA measurement graph leaves the allocator fragmented;
             # releasing the cached blocks keeps the next training step from
-            # failing to find a contiguous one (the tsweep OOM lesson).
+            # failing to find a contiguous one.
             torch.cuda.empty_cache()
 
         readings = {

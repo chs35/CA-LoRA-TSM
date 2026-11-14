@@ -1,9 +1,8 @@
 """The numeric regime of a CA measurement (``measure.precision``).
 
 Every earlier selection was measured in full fp32 with TF32 off -- on an A100
-that leaves the tensor cores idle (an fp32 matmul runs ~10.7x slower than TF32,
-runs/sdxl_cityscapes_fewshot10_gate/tensor_core_gate.json). This module names the
-three regimes so a measurement states which one it ran in:
+that leaves the tensor cores idle. This module names the three regimes so a
+measurement states which one it ran in:
 
 ``fp32``  TF32 off. The reference.
 ``tf32``  TF32 tensor-core matmuls; weights, activations and grads stay fp32.

@@ -1,4 +1,5 @@
-"""Concept-Aware LoRA: reproduction and optimization.
+"""Improving CA-LoRA: Concept-Aware LoRA reimplemented, with a quantitative
+criterion for the CA-measurement timestep.
 
 Reference: "Concept-Aware LoRA for Domain-Aligned Segmentation Dataset Generation"
 (M. Park et al., CVPR), arXiv:2503.22172.
