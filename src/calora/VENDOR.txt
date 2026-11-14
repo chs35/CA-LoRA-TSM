@@ -1,8 +1,4 @@
-Vendored copy of calora (Improving-CA-LoRA reimplementation of CA-LoRA).
-Source: /workspace/Improving-CA-LoRA/src/calora (github.com/chs35/Improving-CA-LoRA)
-Commit: db680c3 + the self-generated CA measurement changes of 2026-11-07
-  (calora.data.selfgen, calora.ca.precision, calora.analysis.drift_data, measurement
-  provenance headers; previously db680c3 as of 2026-11-03, before that 500c9ec).
-  Re-stamp with the upstream commit hash once those changes are committed there.
-Copied: 2026-11-07
-Do not edit; all CA-LoRA-TSM code lives in src/catsm.
+Copy of src/calora from Improving-CA-LoRA (github.com/chs35/Improving-CA-LoRA),
+the reimplementation of CA-LoRA that this project builds on.
+Identical to that repository's src/calora as of its release cleanup (2026-11-14).
+Do not edit here; all CA-LoRA-TSM code lives in src/catsm.

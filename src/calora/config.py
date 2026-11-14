@@ -141,7 +141,7 @@ class MeasureConfig:
     source: str = "selfgen"
     selfgen: SelfGenConfig = field(default_factory=SelfGenConfig)
     #: Numeric regime of scripts/measure_ca.py, set there explicitly whatever
-    #: ``model.allow_tf32`` says. ``fp32``: TF32 off (the pre-registered regime of
+    #: ``model.allow_tf32`` says. ``fp32``: TF32 off (the regime of
     #: every earlier selection). ``tf32``: TF32 tensor-core matmuls. ``bf16``:
     #: bf16 autocast forward (TF32 for what stays fp32); CA is still read off fp32
     #: ``param.grad``. Anything but fp32 is adopted only through the pre-fixed gate
@@ -192,7 +192,7 @@ class MeasureConfig:
     #: callback in :mod:`calora.analysis.stability`), never for scripts/measure_ca.py
     #: — the selection every arm was made from must stay in one numeric regime.
     #: "bf16" roughly halves the snapshot cost; it changes the measured scores
-    #: slightly, so it is only sound once the pre-registered equivalence gate of
+    #: slightly, so it is only sound once the equivalence gate of
     #: scripts/check_drift_autocast_gate.py (spearman >= 0.99, top-2% jaccard
     #: >= 0.8) has passed, and then only if applied to every arm.
     drift_autocast: str = "no"  # "no" | "bf16"

@@ -43,7 +43,7 @@ def drift_autocast_context(device: torch.device, mode: str):
     ``"bf16"`` roughly halves the snapshot cost, which is ~50% of a training
     arm's wall clock. The accumulators are unaffected: CA is read off
     ``param.grad`` of fp32 parameters, so the sums stay fp32 whatever dtype the
-    forward ran in — only the measured value moves, by the amount the plan's
+    forward ran in — only the measured value moves, by the amount the
     equivalence gate bounds. ``"no"`` returns the null context rather than a
     disabled ``autocast`` so the default path is bit-identical to code that never
     knew about this option.
