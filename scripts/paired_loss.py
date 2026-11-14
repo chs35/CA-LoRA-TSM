@@ -1,7 +1,7 @@
 """Paired L_Diff of the base UNet vs. a fostered expert on the same (image, t, noise) triples.
 
-    python scripts/paired_loss.py --config configs/sdxl_cityscapes.yaml \
-        --expert-file runs/sdxl_cityscapes/experts/n4_i0/lora-final.safetensors --num 96
+    python scripts/paired_loss.py --config configs/sdxl_cityscapes_selfgen_fewshot10.yaml \
+        --expert-file runs/sdxl_cityscapes_selfgen_fewshot10/experts/n4_i0/lora-final.safetensors --num 96
 
 The training loss is a single batch-1 value per step and is dominated by which image
 and which t were drawn, so it cannot show whether the LoRA learned anything. This

@@ -1,7 +1,8 @@
-# sdxl_cityscapes_fewshot10.yaml (10-image training, tensor cores) on the
-# self-generated CA selections of sdxl_cityscapes_selfgen.yaml. Nothing but the
-# name and the measurement provenance differs from the 2026-11-03 campaign; run it
-# with the overrides documented at the top of scripts/ops/run_fewshot10.sh.
+# The reported run: sdxl_cityscapes_fewshot10.yaml (10-image training, tensor cores)
+# on the self-generated CA selections of sdxl_cityscapes_selfgen.yaml. This file adds
+# only the run name and the measurement provenance (measure.*) to its base. It was run
+# by scripts/ops/run_selfgen_chain.sh, which calls scripts/ops/run_fewshot10.sh with
+# the overrides listed at the top of that script.
 _base_: sdxl_cityscapes_fewshot10.yaml
 
 name: sdxl_cityscapes_selfgen_fewshot10

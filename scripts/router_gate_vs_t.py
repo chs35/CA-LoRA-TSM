@@ -1,7 +1,7 @@
-"""Router gate as a function of t on held-out images (README "Router gate vs t").
+"""Router gate as a function of t on held-out images.
 
     python scripts/router_gate_vs_t.py \
-        --bundle runs/sdxl_cityscapes/bundles/n1+n4-core-n4/bundle.safetensors --arm no3
+        --bundle runs/sdxl_cityscapes_selfgen_fewshot10/bundles/n1+n4-core-n4/bundle.safetensors --arm no3
 
 The router emits ``g[m, k](z_t, t) = F(z_t)[m, k] + E(t)[m, k]`` with
 ``F(z) = fc(mean_hw z) `` (bias included) and ``E(t) = t_embed[t]``. This script

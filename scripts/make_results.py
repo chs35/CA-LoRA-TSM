@@ -100,7 +100,7 @@ def refresh() -> None:
                          for t, v in diag["per_timestep"].items()},
     }
     (RES / "diagnosis_jaccard.json").write_text(json.dumps(keep, indent=1))
-    print("refreshed results/evals, results/reference_10k, results/diagnosis_jaccard.json")
+    print(f"refreshed evals/, reference_10k/ and diagnosis_jaccard.json under {RES}")
 
 
 def row_from_eval(arm: str, d: dict, *, label: str, desc: str, group: str) -> dict:

@@ -1,6 +1,6 @@
 """Score a generated arm: CMMD against real data, CLIP-Score against the prompts.
 
-    python scripts/evaluate.py --config configs/sdxl_cityscapes.yaml --run-name no3
+    python scripts/evaluate.py --config configs/sdxl_cityscapes_selfgen_fewshot10.yaml --run-name no3
 
 Reads ``<run_dir>/<arm>/generated/manifest.json`` from ``scripts/generate_images.py``,
 exports the CMMD reference set once per run directory, and writes ``<arm>/eval.json``.

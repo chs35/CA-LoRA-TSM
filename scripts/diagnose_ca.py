@@ -1,8 +1,8 @@
 """Timestep diagnostics for the per-interval t decision.
 
-    python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml
-    python scripts/diagnose_ca.py --config configs/sdxl_cityscapes.yaml \
-        --measurements runs/sdxl_cityscapes/measurements --timesteps 1 41 61 81
+    python scripts/diagnose_ca.py --config configs/sdxl_cityscapes_selfgen.yaml
+    python scripts/diagnose_ca.py --config configs/sdxl_cityscapes_selfgen.yaml \
+        --measurements runs/sdxl_cityscapes_selfgen/measurements --timesteps 1 41 61 81
 
 Reads every full measurement ``t*.safetensors`` and writes ``<run_dir>/diagnosis/``.
 The CA-LoRA visual heuristic is reproduced as *figures only* — no score decides

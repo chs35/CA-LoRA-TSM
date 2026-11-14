@@ -1,17 +1,18 @@
 # sdxl_cityscapes.yaml trained on 10 randomly drawn images, using the A100's tensor cores.
+# Base of sdxl_cityscapes_selfgen_fewshot10.yaml, the reported run.
 #
-# Same arms, selections, steps and evaluation protocol as the full-data run. What changes:
+# Arms, steps and evaluation protocol are those of sdxl_cityscapes.yaml. What this file sets:
 #   - train.subset_size: the training loops (fostering, router) read 10 images, drawn from the
 #     whole train split and pinned in <run>/training_subset.json. Selections stay the ones
 #     measured on 256 images; generation prompts and the CMMD reference keep reading the full
 #     data. subset_seed 0 draws the same 10 images as Improving-CA-LoRA's few-shot campaign.
 #   - bf16 autocast around the training forward, with fp32 weights, LoRA masters and Adam state.
 #   - TF32 for fp32 matmuls, in training and in generation. Generation stays fp32: bf16 sampling
-#     missed the pre-registered CLIP-cosine threshold in the sibling repo (0.98946 < 0.99).
+#     missed the CLIP-cosine threshold set for it in Improving-CA-LoRA (0.98946 < 0.99).
 #   - No gradient checkpointing, and a latent cache with the random crop taken in latent space.
 #
-# The precision and crop changes mean a difference from the full-data numbers cannot be
-# attributed to the image count alone.
+# Precision and the crop change along with the image count, so a run under this file and
+# one under sdxl_cityscapes.yaml differ by more than the image count.
 _base_: sdxl_cityscapes.yaml
 
 name: sdxl_cityscapes_fewshot10

@@ -21,7 +21,8 @@
 # run the pipeline on the self-generated measurement with the existing
 # representatives, no re-decision (scripts/ops/run_selfgen_chain.sh). They were a
 # visual judgement on the old measurements; scripts/diagnose_ca.py on the new set
-# shows whether they still sit where the old figures put them.
+# shows whether they still sit where that earlier diagnosis (its figures are not
+# in this repository) put them.
 _base_: sdxl_cityscapes.yaml
 
 name: sdxl_cityscapes_selfgen

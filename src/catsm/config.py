@@ -33,7 +33,7 @@ class IntervalsConfig:
 
     Boundaries default to halving from the top; ``boundaries``
     overrides a scheme's interior interval starts, e.g. ``{"n4": [125, 250, 500]}``,
-    once the §4 diagnosis has fixed them.
+    once the CA diagnosis (``scripts/diagnose_ca.py``) has fixed them.
     """
 
     schemes: list[int] = field(default_factory=lambda: [1, 3, 4, 5])

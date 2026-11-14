@@ -1,6 +1,6 @@
 """Re-use a fostered expert for another expert with the same interval and selection.
 
-    python scripts/share_expert.py --config configs/sdxl_cityscapes.yaml --from n4_i2 --to n3_i1 n5_i3
+    python scripts/share_expert.py --config configs/sdxl_cityscapes_selfgen_fewshot10.yaml --from n4_i2 --to n3_i1 n5_i3
 
 With halving boundaries several experts of different schemes coincide (same [t_lo, t_hi],
 same representative t, hence the same selection sha): n4_i1=n5_i2, n3_i1=n4_i2=n5_i3,

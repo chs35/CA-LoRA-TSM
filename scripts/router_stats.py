@@ -1,6 +1,6 @@
 """Inspect an assembled bundle without loading the UNet: metadata, tensor sanity, router gates.
 
-    python scripts/router_stats.py --bundle runs/sdxl_cityscapes/bundles/n1+n4-core-n4/bundle.safetensors
+    python scripts/router_stats.py --bundle runs/sdxl_cityscapes_selfgen_fewshot10/bundles/n1+n4-core-n4/bundle.safetensors
     python scripts/router_stats.py --bundle ... --png            # also writes gate_heatmap.png next to the bundle
 
 Writes ``bundle_stats.json`` next to the bundle. For a routed bundle the gate that

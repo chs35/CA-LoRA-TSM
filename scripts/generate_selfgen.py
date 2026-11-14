@@ -1,7 +1,10 @@
 """Generate (or complete, or just verify) the self-generated CA measurement set.
 
-    python scripts/generate_selfgen.py --config configs/ca_selfgen.yaml
+    python scripts/generate_selfgen.py --config configs/ca_selfgen.yaml   # in Improving-CA-LoRA
     python scripts/generate_selfgen.py --config configs/tiny_cpu.yaml --verify-only
+
+``configs/ca_selfgen.yaml`` is Improving-CA-LoRA's config and is not part of this
+repository; the first command is the one that was run there.
 
 The paper measures CA on images the base model generated from the fixed prompt c
 (Sec. 3.2: "x0 = Phi_T2I(c; theta)"). This script samples

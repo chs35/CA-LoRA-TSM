@@ -1,9 +1,9 @@
 """Does one finished stage of the few-shot rerun have sound artifacts? Exit 0 if so.
 
-    python scripts/ops/check_rerun.py expert   --run sdxl_cityscapes_fewshot10 --name n4_i0
-    python scripts/ops/check_rerun.py bundle   --run sdxl_cityscapes_fewshot10 --name n4-core-n4
-    python scripts/ops/check_rerun.py generate --run sdxl_cityscapes_fewshot10 --name no2
-    python scripts/ops/check_rerun.py evaluate --run sdxl_cityscapes_fewshot10 --name no2
+    python scripts/ops/check_rerun.py expert   --run sdxl_cityscapes_selfgen_fewshot10 --name n4_i0
+    python scripts/ops/check_rerun.py bundle   --run sdxl_cityscapes_selfgen_fewshot10 --name n4-core-n4
+    python scripts/ops/check_rerun.py generate --run sdxl_cityscapes_selfgen_fewshot10 --name no2
+    python scripts/ops/check_rerun.py evaluate --run sdxl_cityscapes_selfgen_fewshot10 --name no2
 
 The network volume corrupts and loses writes, so this reads files back rather than
 trusting that they exist.

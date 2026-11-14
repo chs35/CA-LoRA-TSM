@@ -1,8 +1,8 @@
 """Sample images from a TSM bundle (or a single expert file), for CMMD and CLIP-Score.
 
-    python scripts/generate_images.py --config configs/sdxl_cityscapes.yaml \
-        --bundle runs/sdxl_cityscapes/bundles/n1+n4-core-n4/bundle.safetensors --run-name no3
-    python scripts/generate_images.py --config ... --lora runs/sdxl_cityscapes/experts/n1_i0/lora-final.safetensors --run-name n1_alone
+    python scripts/generate_images.py --config configs/sdxl_cityscapes_selfgen_fewshot10.yaml \
+        --bundle runs/sdxl_cityscapes_selfgen_fewshot10/bundles/n1+n4-core-n4/bundle.safetensors --run-name no3
+    python scripts/generate_images.py --config ... --lora runs/sdxl_cityscapes_selfgen_fewshot10/experts/n1_i0/lora-final.safetensors --run-name n1_alone
     python scripts/generate_images.py --config ...                       # base model control
 
 Copied from Improving-CA-LoRA/scripts/generate_images.py with one substantive

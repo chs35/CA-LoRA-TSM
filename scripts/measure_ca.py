@@ -3,6 +3,9 @@
     python scripts/generate_selfgen.py --config configs/ca_selfgen.yaml   # once
     python scripts/measure_ca.py --config configs/ca_selfgen.yaml --skip-existing
 
+Both commands are the ones run in Improving-CA-LoRA: ``configs/ca_selfgen.yaml`` is
+that repository's config and is not part of this one.
+
 x0 is, by default (``measure.source: selfgen``), the set of images the base model
 generated from c -- the paper's protocol (Sec. 3.2, Algorithm 1). The set is made
 by scripts/generate_selfgen.py and only *verified* here; its VAE latents are
@@ -58,8 +61,8 @@ def main() -> None:
     adapter = load_adapter(cfg.model)
     # The measurement keeps its own numeric and memory regime whatever the
     # training settings of the same config say: measure.precision (fp32 unless
-    # the pre-fixed gate of scripts/ops/check_measure_precision.py adopted
-    # tf32/bf16) and measure.gradient_checkpointing (on by default -- the
+    # the pre-fixed gate of Improving-CA-LoRA's scripts/ops/check_measure_precision.py
+    # adopted tf32/bf16) and measure.gradient_checkpointing (on by default -- the
     # direction accumulators alone take ~36 GiB on SDXL).
     precision = cfg.measure.precision
     if cfg.model.allow_tf32 and precision == "fp32":
@@ -166,8 +169,8 @@ def main() -> None:
             )
 
         # The halves are written alongside the full result rather than inside it:
-        # score_timesteps.py ranks each half independently, so it wants them as
-        # ordinary measurements it can load and pool on their own.
+        # Improving-CA-LoRA's score_timesteps.py ranks each half independently, so it
+        # wants them as ordinary measurements it can load and pool on their own.
         half_result = None  # bound even with no halves, for the del below
         for half, half_result in enumerate(result.halves or ()):
             half_path = cli.measurement_path(cfg, timestep, half=half)
