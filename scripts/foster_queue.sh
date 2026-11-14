@@ -3,6 +3,8 @@
 #   scripts/foster_queue.sh sdxl_cityscapes:n4_i0:runs/sdxl_cityscapes/selections/n1/n1_i0.json sdxl_c1:n4_i0
 # Skips an expert whose lora-final.safetensors already exists. Logs to runs/<run>/logs/foster_<expert>.out.
 # Launch with nohup and record the PID via pgrep (see docs/GPU_RUNBOOK.md pod checklist).
+# Since 2026-11-07 `foster` refuses a selection not measured on self-generated images; to
+# rerun a historical (real-image) campaign set FOSTER_EXTRA=--allow-legacy-selection.
 set -u
 cd "$(dirname "$0")/.."
 source scripts/env.sh
@@ -12,7 +14,7 @@ for job in "$@"; do
   out=runs/$run/experts/$expert/lora-final.safetensors
   if [ -f "$out" ]; then echo "[$(TZ=Asia/Seoul date '+%F %T') KST] skip $run/$expert (exists)"; continue; fi
   mkdir -p runs/$run/logs
-  args=(--config $CFG --name $run --expert $expert)
+  args=(--config $CFG --name $run --expert $expert ${FOSTER_EXTRA:-})
   [ -n "${selection:-}" ] && args+=(--selection "$selection")
   echo "[$(TZ=Asia/Seoul date '+%F %T') KST] start $run/$expert ${selection:+(selection $selection)}"
   python -m catsm.cli foster "${args[@]}" > runs/$run/logs/foster_$expert.out 2>&1

@@ -74,7 +74,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import torch
@@ -153,6 +153,12 @@ class MeasurementResult:
 
     augs_per_sample: int = 1
     table_records: list[dict] | None = None
+    provenance: dict[str, str] = field(default_factory=dict)
+    """Where x0 came from and the numeric regime: ``data_source`` (``selfgen`` |
+    ``dataset``), the self-generated set's manifest sha256, ``precision``. Set by
+    scripts/measure_ca.py; files written before 2026-11-07 carry none and read
+    back as ``data_source="dataset"``, which is what they were measured on."""
+
     halves: tuple[MeasurementResult, MeasurementResult] | None = None
     """The even/odd sample halves this result was merged from, when
     ``measure.split_half`` is on. Deliberately not serialised — the halves are
@@ -794,6 +800,7 @@ def save_measurement(
         "axes": json.dumps(list(result.axes)),
         "names": json.dumps(list(result.names)),
         "table_records": json.dumps(result.table_records or []),
+        "provenance": json.dumps(dict(result.provenance), sort_keys=True),
     }
     save_file(
         {k: v.detach().cpu().contiguous() for k, v in tensors.items()},
@@ -869,4 +876,47 @@ def load_measurement(
         num_items=int(metadata.get("num_items", metadata["num_samples"])),
         augs_per_sample=int(metadata.get("augs_per_sample", 1)),
         table_records=records,
+        provenance=read_provenance(metadata),
     )
+
+
+#: What a file without a ``provenance`` header was measured on: every measurement
+#: before 2026-11-07 read real dataset images.
+LEGACY_PROVENANCE = {"data_source": "dataset", "precision": "fp32", "legacy": "true"}
+
+
+def read_provenance(metadata: dict[str, str]) -> dict[str, str]:
+    raw = metadata.get("provenance")
+    parsed = json.loads(raw) if raw else {}
+    if not parsed:
+        # No header, or a result saved without provenance (only scripts/measure_ca.py
+        # sets it): say nothing it cannot back up -- read as the historical default.
+        return dict(LEGACY_PROVENANCE)
+    return {str(k): str(v) for k, v in parsed.items()}
+
+
+#: Provenance keys that must agree for measurements to be pooled or compared.
+#: ``precision`` is deliberately included: two regimes are two estimators.
+PROVENANCE_IDENTITY_KEYS = ("data_source", "selfgen_manifest_sha256", "precision")
+
+
+def common_provenance(results) -> dict[str, str]:
+    """The provenance shared by ``results`` (a mapping or a sequence of them).
+
+    Raises if they disagree on what x0 was or on the numeric regime -- the same
+    rule as unit granularity: a self-generated and a real-image measurement have
+    identical shapes and names and must never be pooled into one ranking.
+    """
+    values = list(results.values()) if hasattr(results, "values") else list(results)
+    if not values:
+        return {}
+    first = values[0].provenance
+    for other in values[1:]:
+        for key in PROVENANCE_IDENTITY_KEYS:
+            if other.provenance.get(key) != first.get(key):
+                raise ValueError(
+                    f"Measurements disagree on {key}: t={values[0].timestep} has "
+                    f"{first.get(key)!r}, t={other.timestep} has {other.provenance.get(key)!r}. "
+                    "Measurements of different x0 sources or precisions cannot be pooled."
+                )
+    return dict(first)

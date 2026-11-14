@@ -15,7 +15,7 @@ from pathlib import Path
 import torch
 
 from calora.ca.select import Selection, aggregate_across_timesteps, axis_scores, select_topk
-from calora.ca.stats import MeasurementResult, load_measurement
+from calora.ca.stats import MeasurementResult, common_provenance, load_measurement
 from calora.cli import is_half_measurement
 from calora.config import SelectConfig
 from calora.models.projections import ProjectionTable
@@ -24,10 +24,25 @@ from catsm.config import SELECT_MODES
 from catsm.intervals import Interval, IntervalScheme, scheme_record
 
 
+#: What a selection's CA must have been measured on: images the base model
+#: generated itself (CA-LoRA Sec. 3.2), not real training frames.
+REQUIRED_DATA_SOURCE = "selfgen"
+
+
 def load_measurements(
-    directory: str | Path, *, granularity: str = "head"
+    directory: str | Path,
+    *,
+    granularity: str = "head",
+    require_source: str | None = REQUIRED_DATA_SOURCE,
 ) -> dict[int, MeasurementResult]:
-    """Every full (non-half) measurement in ``directory``, keyed by timestep."""
+    """Every full (non-half) measurement in ``directory``, keyed by timestep.
+
+    All files must share one provenance (x0 source, self-generated set, precision;
+    :func:`calora.ca.stats.common_provenance`), and with ``require_source`` (the
+    default, ``"selfgen"``) that source must be the self-generated one. Files from
+    before 2026-11-07 carry no provenance and read as ``"dataset"``: pass
+    ``require_source=None`` only to re-read those historical runs.
+    """
     directory = Path(directory)
     paths = sorted(p for p in directory.glob("t*.safetensors") if not is_half_measurement(p))
     if not paths:
@@ -44,7 +59,27 @@ def load_measurements(
             f"Measurements under {directory} disagree on their unit list; they were made "
             "against different models or granularities"
         )
+    provenance = common_provenance(results)
+    if require_source is not None and provenance.get("data_source") != require_source:
+        raise ValueError(
+            f"Measurements under {directory} have data_source="
+            f"{provenance.get('data_source')!r}; selections must come from "
+            f"{require_source!r} measurements (CA on base-model self-generated images). "
+            "Import runs/ca_selfgen from Optimizing-CA-LoRA "
+            "(scripts/ops/import_measurements.sh), or pass --allow-legacy-measurements to "
+            "re-read a historical run."
+        )
     return results
+
+
+def provenance_meta(results: Mapping[int, MeasurementResult]) -> dict:
+    """The measurement provenance a selection JSON carries (see load_selection)."""
+    provenance = common_provenance(results)
+    return {
+        "data_source": provenance.get("data_source"),
+        "selfgen_manifest_sha256": provenance.get("selfgen_manifest_sha256"),
+        "precision": provenance.get("precision"),
+    }
 
 
 def selection_sha(names: Iterable[str]) -> str:
@@ -187,9 +222,26 @@ def write_scheme_selections(
     return out_dir
 
 
-def load_selection(path: str | Path, table: ProjectionTable | None = None) -> Selection:
+def load_selection(
+    path: str | Path,
+    table: ProjectionTable | None = None,
+    *,
+    require_source: str | None = None,
+) -> Selection:
+    """A head selection; with ``require_source``, one whose CA came from that x0 source.
+
+    Selections written before 2026-11-07 record no ``data_source`` and are
+    treated as ``"dataset"`` (they were measured on real Cityscapes frames).
+    """
     selection = Selection.from_dict(load_json(path), table)
     if selection.granularity != "head":
         raise ValueError(f"{path}: interval experts need a head-granularity selection")
+    source = selection.meta.get("data_source") or "dataset"
+    if require_source is not None and source != require_source:
+        raise ValueError(
+            f"{path} was selected from data_source={source!r} measurements; experts must be "
+            f"fostered on a {require_source!r} selection (re-run `catsm.cli select` on the "
+            "imported self-generated measurements), or pass --allow-legacy-selection."
+        )
     selection.meta.setdefault("selection_sha", selection_sha(selection.names))
     return selection

@@ -1,0 +1,12 @@
+# sdxl_cityscapes_fewshot10.yaml (10-image training, tensor cores) on the
+# self-generated CA selections of sdxl_cityscapes_selfgen.yaml. Nothing but the
+# name and the measurement provenance differs from the 2026-11-03 campaign; run it
+# with the overrides documented at the top of scripts/ops/run_fewshot10.sh.
+_base_: sdxl_cityscapes_fewshot10.yaml
+
+name: sdxl_cityscapes_selfgen_fewshot10
+
+measure:
+  timesteps: [1, 41, 61, 81, 121, 125, 201, 250, 301, 375, 401, 481, 500, 601, 701, 750,
+              801, 901, 981, 999]
+  source: selfgen

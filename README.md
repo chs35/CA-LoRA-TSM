@@ -2,6 +2,8 @@
 
 CA-LoRA whose concept-aware head selection is made per timestep interval and combined by a TSM-style router.
 
+> **2026-11-07 — results below are pending a rerun.** Every selection behind them was measured on real Cityscapes training frames, while CA-LoRA (Sec. 3.2) measures CA on images the base model generated itself. The code now imports the self-generated measurement made in Optimizing-CA-LoRA and refuses real-image selections. See docs/GPU_RUNBOOK.md, "2026-11-07 재실행".
+
 ## TL;DR
 
 - **The selected heads do depend on t, but there are no blocks to find.** The top-2% style-CA head set drifts smoothly with the noise level: its Jaccard with the t = 81 set is 0.59 at t = 121, 0.33 at 250, 0.11 at 500 and ≤ 0.05 from 601 on. The matrix has no block edge at any interval boundary we used. From t ≈ 400 to 750 roughly half of the set is sampling noise (split-half Jaccard 0.33–0.48).

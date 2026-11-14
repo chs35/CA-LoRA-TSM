@@ -66,7 +66,26 @@ CATSM_SDXL_SMOKE=1 python -m pytest tests/test_gpu.py -q -k sdxl -p no:cacheprov
 
 ---
 
-## 1단계 — CA 측정 (미리 정한 t 후보)
+## 2026-11-07 재실행: 자기 생성 데이터 CA (이 절이 아래 1단계를 대체)
+
+원 논문(§3.2, Algorithm 1)은 CA를 **base 모델이 c로 직접 생성한 이미지**로 측정한다("x0 = Φ_T2I(c; θ)"). 아래 1단계와 기존 run(`sdxl_cityscapes`, `sdxl_c1`, 그 fewshot10 사본)은 Cityscapes train 앞 256장으로 측정했기 때문에 selection·expert·router를 전부 다시 만든다. 학습 데이터, 학습 프롬프트, 평가 프로토콜은 그대로 둔다.
+
+1. **측정은 이 저장소에서 하지 않는다.** Optimizing-CA-LoRA에서 한 번 측정한다(`configs/ca_selfgen.yaml` → `runs/ca_selfgen/measurements`, 20 t = 아래 1단계와 같은 t 집합). 측정이 끝나면 그 저장소의 `runs/ca_selfgen/HANDOFF.md`에 경로·sha256·정밀도가 적힌다.
+2. **import:**
+   ```bash
+   bash scripts/ops/import_measurements.sh \
+     /workspace/Optimizing-CA-LoRA/runs/ca_selfgen/measurements sdxl_cityscapes_selfgen
+   ```
+   원본 `SHA256SUMS`로 바이트를 검증하고, head granularity와 `data_source=selfgen`으로 재로드를 검증한 뒤 `runs/sdxl_cityscapes_selfgen/IMPORTED.json`을 쓴다. C1용 `runs/sdxl_c1_selfgen/measurements`도 같은 명령으로 만든다(run 이름만 `sdxl_c1_selfgen`).
+3. **2단계(대표 t): 기존 값을 그대로 쓴다 (사용자 결정 2026-11-07, 재결정 없음).** 아래 문장은 재결정이 필요해질 때의 절차다. `python scripts/diagnose_ca.py --config configs/sdxl_cityscapes_selfgen.yaml`로 그림을 만든다. 측정 x0가 바뀌었으므로 2026-09-14의 대표 t(`interval_select.representative`)는 재확인 대상이고, **사용자 결정**이다. 결정을 config에 반영한 뒤 `python -m catsm.cli select --config configs/sdxl_cityscapes_selfgen.yaml --scheme nK --set model.device=cpu`를 실행한다(C1은 `--name sdxl_c1_selfgen --mode fixed`).
+4. **가드:** `select`는 `data_source=selfgen`이 아니거나 출처·정밀도가 섞인 측정을 거부한다. `foster`는 selection의 `meta.data_source`가 `selfgen`이 아니면 거부한다. 과거 run을 다시 읽을 때만 `--allow-legacy-measurements` / `--allow-legacy-selection`(foster_queue는 `FOSTER_EXTRA`)을 쓴다.
+5. **학습·생성·평가:** `scripts/ops/run_fewshot10.sh` 상단 주석의 env override(`CFG`, `RUN`, `RUN_C1`, `SEL_FROM`, `SEL_FROM_C1`, `GATE`)로 실행한다. 텐서 코어 게이트는 기존 결과(`runs/sdxl_cityscapes_fewshot10_gate/`)를 재사용한다. CMMD reference는 실제 val 이미지라 CA와 무관하므로 기존 export를 symlink로 재사용한다.
+
+재실행 범위: n1/n3/n4/n5 expert 전부, router·bundle 전부, C1(n4_i0..i3), 그리고 이들의 생성·평가 전부. CA와 무관한 base control(생성·평가)은 다시 하지 않아도 된다.
+
+---
+
+## 1단계 — CA 측정 (미리 정한 t 후보) — 2026-11-07 이전 (실제 이미지 측정, 이력용)
 
 **후보 t (config `measure.timesteps`):** 1, 41, **61**, 81, 125, 201, 250, 375, 500, 750, 999 — 2026-09-14에 config에 61을 추가해 두었다.
 design §4의 13점 중 625·875는 블록 구조가 불명확할 때만 추가.

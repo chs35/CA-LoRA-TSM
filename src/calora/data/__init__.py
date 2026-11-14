@@ -26,6 +26,7 @@ __all__ = [
     "apply_training_subset",
     "build_augmenter",
     "build_dataset",
+    "build_measurement_dataset",
     "extract_class_names",
     "hflip",
     "load_image",
@@ -104,6 +105,52 @@ def build_dataset(
             seed=seed,
         )
     raise ValueError(f"Unknown data.kind {cfg.kind!r}; expected 'dummy' or 'cityscapes'")
+
+
+def build_measurement_dataset(
+    cfg,
+    *,
+    num_items: int | None,
+    crop: str,
+    hflip: bool,
+    augs_per_sample: int = 1,
+    verify: bool = True,
+) -> Sequence[dict]:
+    """The x0 a CA measurement reads, per ``cfg.measure.source``.
+
+    ``selfgen`` (the paper's protocol): the verified self-generated set of
+    ``cfg.measure.selfgen``, ``num_items`` long (default: ``measure.num_samples``).
+    ``dataset``: ``cfg.data`` as before. ``crop`` and ``hflip`` must be passed
+    explicitly by every measurement call site (``"center"`` / ``False``); they are
+    forwarded to the real dataset and are moot for generated images, which are
+    already at the model resolution and never flipped.
+    """
+    if crop != "center" or hflip:
+        raise ValueError(
+            "A CA measurement must read centre-cropped, un-mirrored x0 (crop='center', "
+            f"hflip=False); got crop={crop!r}, hflip={hflip!r}"
+        )
+    if cfg.measure.source == "selfgen":
+        from calora.data.selfgen import build_selfgen_dataset
+
+        count = cfg.measure.num_samples if num_items is None else num_items
+        if count > cfg.measure.selfgen.num_images:
+            raise ValueError(
+                f"{count} measurement samples requested but measure.selfgen.num_images="
+                f"{cfg.measure.selfgen.num_images}: one sample is one distinct image, so the "
+                "set has to be at least that large."
+            )
+        return build_selfgen_dataset(
+            cfg, num_items=count, augs_per_sample=augs_per_sample, verify=verify
+        )
+    return build_dataset(
+        cfg.data,
+        resolution=cfg.model.resolution,
+        seed=cfg.measure.seed,
+        crop=crop,
+        hflip=hflip,
+        augs_per_sample=augs_per_sample,
+    )
 
 
 def apply_training_subset(dataset, size: int, *, seed: int = 0) -> dict:

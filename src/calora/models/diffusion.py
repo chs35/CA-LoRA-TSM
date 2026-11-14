@@ -121,7 +121,7 @@ class _DiffusersAdapterBase(DenoiserAdapter):
         *,
         num_inference_steps: int = 25,
         guidance_scale: float = 5.0,
-        generator: torch.Tensor | None = None,
+        generator: torch.Generator | list[torch.Generator] | None = None,
     ) -> list:
         """Sample through the already-loaded pipeline — nothing is re-downloaded.
 

@@ -343,7 +343,7 @@ class ToyAdapter(DenoiserAdapter):
         *,
         num_inference_steps: int = 25,
         guidance_scale: float = 5.0,
-        generator: torch.Generator | None = None,
+        generator: torch.Generator | list[torch.Generator] | None = None,
     ) -> list:
         """Deterministic DDIM (eta=0) with classifier-free guidance, then decode.
 
@@ -360,9 +360,20 @@ class ToyAdapter(DenoiserAdapter):
         uncond = _to(self.encode_prompts([""] * len(prompts)), self._device, self._dtype)
 
         shape = self.latent_shape(len(prompts), self.resolution)
-        latents = torch.randn(shape, generator=generator, dtype=torch.float32).to(
-            device=self._device, dtype=self._dtype
-        )
+        if isinstance(generator, (list, tuple)):
+            # One generator per image, as diffusers accepts: each image's initial
+            # noise is then independent of which batch it was sampled in.
+            if len(generator) != len(prompts):
+                raise ValueError(
+                    f"{len(generator)} generators for {len(prompts)} prompts"
+                )
+            latents = torch.cat(
+                [torch.randn((1, *shape[1:]), generator=g, dtype=torch.float32)
+                 for g in generator]
+            )
+        else:
+            latents = torch.randn(shape, generator=generator, dtype=torch.float32)
+        latents = latents.to(device=self._device, dtype=self._dtype)
 
         # Evenly spaced, strictly descending; the last step lands on t=0.
         step = max(self.num_train_timesteps // num_inference_steps, 1)

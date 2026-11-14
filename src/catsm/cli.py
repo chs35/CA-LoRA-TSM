@@ -22,7 +22,14 @@ from calora.utils.io import dump_json, load_json
 from calora.utils.logging import get_logger, setup_logging
 from catsm.config import CatsmConfig, load_config
 from catsm.intervals import build_scheme, parse_expert_name
-from catsm.select import load_measurements, load_selection, select_scheme, write_scheme_selections
+from catsm.select import (
+    REQUIRED_DATA_SOURCE,
+    load_measurements,
+    load_selection,
+    provenance_meta,
+    select_scheme,
+    write_scheme_selections,
+)
 from catsm.train.assemble import build_assembly, train_router
 from catsm.train.foster import train_expert
 
@@ -105,7 +112,11 @@ def cmd_select(args: argparse.Namespace) -> None:
     cfg = resolve(args)
     mode = args.mode or cfg.interval_select.mode
     measurements = Path(args.measurements) if args.measurements else cfg.run_dir / "measurements"
-    results = load_measurements(measurements, granularity=cfg.select.granularity)
+    results = load_measurements(
+        measurements,
+        granularity=cfg.select.granularity,
+        require_source=None if args.allow_legacy_measurements else REQUIRED_DATA_SOURCE,
+    )
     table = next(iter(results.values())).table()
     adapter = load_adapter(cfg.model)  # only for T and the log-SNR record
     scheme = build_scheme(args.scheme, adapter.num_train_timesteps, cfg.intervals)
@@ -118,6 +129,11 @@ def cmd_select(args: argparse.Namespace) -> None:
         representative=cfg.interval_select.representative.get(scheme.name),
         fixed_t=cfg.interval_select.fixed_timestep,
     )
+    # Where the CA came from travels with every selection, so `foster` can refuse
+    # one measured on real images (see load_selection).
+    provenance = provenance_meta(results)
+    for selection in selections.values():
+        selection.meta.update(provenance)
     out = write_scheme_selections(
         selections, scheme, selections_dir(cfg, scheme.name), alphas_cumprod=adapter.alphas_cumprod
     )
@@ -134,7 +150,9 @@ def cmd_foster(args: argparse.Namespace) -> None:
     scheme = build_scheme(set_name, adapter.num_train_timesteps, cfg.intervals)
     interval = scheme.intervals[index]
     path = Path(args.selection) if args.selection else selections_dir(cfg, set_name) / f"{args.expert}.json"
-    selection = load_selection(path)
+    selection = load_selection(
+        path, require_source=None if args.allow_legacy_selection else REQUIRED_DATA_SOURCE
+    )
     dataset = build_dataset(cfg.data, resolution=cfg.model.resolution, seed=cfg.train.seed)
     subset = restrict_to_training_subset(cfg, dataset)
     output = experts_dir(cfg) / args.expert
@@ -150,6 +168,8 @@ def cmd_foster(args: argparse.Namespace) -> None:
             "select_mode": str(selection.meta.get("mode", "")),
             "ca_timesteps": str(selection.meta.get("timesteps", "")),
             "selection_sha": str(selection.meta["selection_sha"]),
+            "ca_data_source": str(selection.meta.get("data_source") or "dataset"),
+            "ca_selfgen_manifest_sha256": str(selection.meta.get("selfgen_manifest_sha256") or ""),
             **({"training_subset": ",".join(subset["keys"])} if subset else {}),
         },
         latent_store=latent_store_for(cfg, dataset, cfg.train.cache_latents),
@@ -194,12 +214,16 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--scheme", required=True, help="Expert set, e.g. n4")
     p.add_argument("--mode", choices=("representative", "aggregate", "fixed"), default=None)
     p.add_argument("--measurements", default=None, help="Directory of t*.safetensors")
+    p.add_argument("--allow-legacy-measurements", action="store_true",
+                   help="Accept measurements not made on self-generated images (historical runs)")
     p.set_defaults(func=cmd_select)
 
     p = sub.add_parser("foster", help="Train one expert on its interval")
     add_base_args(p)
     p.add_argument("--expert", required=True, help="Expert name, e.g. n4_i0")
     p.add_argument("--selection", default=None, help="Selection JSON (default: selections/<set>/<expert>.json)")
+    p.add_argument("--allow-legacy-selection", action="store_true",
+                   help="Accept a selection not measured on self-generated images (historical runs)")
     p.set_defaults(func=cmd_foster)
 
     p = sub.add_parser("assemble", help="Load experts and train the router")

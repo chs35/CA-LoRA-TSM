@@ -10,10 +10,18 @@ set -u -o pipefail
 cd "$(dirname "$0")/../.."
 source scripts/env.sh
 export OMP_NUM_THREADS=16 MKL_NUM_THREADS=16 PYTHONUNBUFFERED=1
-export CFG=configs/sdxl_cityscapes_fewshot10.yaml RUN=sdxl_cityscapes_fewshot10 RUN_C1=sdxl_c1_fewshot10
+# Overridable for the self-generated-CA rerun (2026-11-07):
+#   CFG=configs/sdxl_cityscapes_selfgen_fewshot10.yaml RUN=sdxl_cityscapes_selfgen_fewshot10 \
+#   RUN_C1=sdxl_c1_selfgen_fewshot10 SEL_FROM=sdxl_cityscapes_selfgen SEL_FROM_C1=sdxl_c1_selfgen \
+#   GATE=runs/sdxl_cityscapes_fewshot10_gate/tensor_core_gate.json scripts/ops/run_fewshot10.sh
+# The defaults are the 2026-11-03 campaign's (real-image selections: rerunning it now also
+# needs FOSTER_EXTRA=--allow-legacy-selection, see scripts/foster_queue.sh).
+export CFG=${CFG:-configs/sdxl_cityscapes_fewshot10.yaml}
+export RUN=${RUN:-sdxl_cityscapes_fewshot10} RUN_C1=${RUN_C1:-sdxl_c1_fewshot10}
+SEL_FROM=${SEL_FROM:-sdxl_cityscapes} SEL_FROM_C1=${SEL_FROM_C1:-sdxl_c1}
 LOGS=runs/$RUN/logs
 CAMPAIGN=runs/$RUN/campaign.log
-GATE=runs/${RUN}_gate/tensor_core_gate.json
+GATE=${GATE:-runs/${RUN}_gate/tensor_core_gate.json}
 mkdir -p "$LOGS" runs/$RUN_C1/logs
 
 say() { echo "$(date -u +%FT%TZ) $*" >> "$CAMPAIGN"; }
@@ -57,8 +65,9 @@ PY
 ROUTER_GC=$(python -c "import json,sys; print(str(json.load(open(sys.argv[1]))['router_gradient_checkpointing']).lower())" "$GATE")
 [ "$ROUTER_GC" = true ] && export ASSEMBLE_SET="model.enable_gradient_checkpointing=true"
 
-# Selections are the full-data run's, unchanged; the CMMD reference is its val export.
-for pair in sdxl_cityscapes:$RUN sdxl_c1:$RUN_C1; do
+# Selections are the full-data run's (SEL_FROM, SEL_FROM_C1), unchanged; the CMMD reference
+# is its val export (real val images: independent of the CA measurement).
+for pair in $SEL_FROM:$RUN $SEL_FROM_C1:$RUN_C1; do
   src=runs/${pair%%:*}/selections dst=runs/${pair##*:}/selections
   mkdir -p "$dst"
   cp -r "$src"/. "$dst"/ && diff -rq "$src" "$dst" > /dev/null || halt "selection copy of ${pair%%:*} does not verify"

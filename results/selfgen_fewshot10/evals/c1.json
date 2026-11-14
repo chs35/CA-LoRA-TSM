@@ -1,0 +1,150 @@
+{
+  "run": "sdxl_c1_selfgen_fewshot10",
+  "arm": "c1",
+  "bundle": "runs/sdxl_c1_selfgen_fewshot10/bundles/n4-core-n4/bundle.safetensors",
+  "lora": null,
+  "routing": {
+    "sets": [
+      "n4"
+    ],
+    "core": "n4",
+    "disabled": [],
+    "router": null,
+    "experts": [
+      {
+        "name": "n4_i0",
+        "set": "n4",
+        "t_lo": 0,
+        "t_hi": 124,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "4e31e99121cf8709fcaa1344c832b58ce43c2983922cc13abffca26a054c86c5",
+        "steps": 4000,
+        "source": "runs/sdxl_c1_selfgen_fewshot10/experts/n4_i0/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": 7.06939813238936,
+        "logsnr_hi": 1.8438816340346433
+      },
+      {
+        "name": "n4_i1",
+        "set": "n4",
+        "t_lo": 125,
+        "t_hi": 249,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "4e31e99121cf8709fcaa1344c832b58ce43c2983922cc13abffca26a054c86c5",
+        "steps": 4000,
+        "source": "runs/sdxl_c1_selfgen_fewshot10/experts/n4_i1/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": 1.8326700712796313,
+        "logsnr_hi": 0.7328578110622648
+      },
+      {
+        "name": "n4_i2",
+        "set": "n4",
+        "t_lo": 250,
+        "t_hi": 499,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "4e31e99121cf8709fcaa1344c832b58ce43c2983922cc13abffca26a054c86c5",
+        "steps": 4000,
+        "source": "runs/sdxl_c1_selfgen_fewshot10/experts/n4_i2/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": 0.7253876199930291,
+        "logsnr_hi": -0.9560515829672311
+      },
+      {
+        "name": "n4_i3",
+        "set": "n4",
+        "t_lo": 500,
+        "t_hi": 999,
+        "rank": 64,
+        "alpha": 64.0,
+        "selection_sha": "4e31e99121cf8709fcaa1344c832b58ce43c2983922cc13abffca26a054c86c5",
+        "steps": 4000,
+        "source": "runs/sdxl_c1_selfgen_fewshot10/experts/n4_i3/lora-final.safetensors",
+        "axis": "style",
+        "logsnr_lo": -0.9627273430212699,
+        "logsnr_hi": -5.36404843867982
+      }
+    ]
+  },
+  "embedder": "clip",
+  "reportable": true,
+  "miou": null,
+  "protocol": {
+    "prompt": "photorealistic first-person urban street view",
+    "include_class_names": true,
+    "guidance_scale": 5.0,
+    "num_inference_steps": 25,
+    "scheduler": "EulerDiscreteScheduler",
+    "resolution": 1024,
+    "seed": 0,
+    "generation_batch_size": 4,
+    "weather_conditions": [
+      "foggy",
+      "night-time",
+      "rainy",
+      "snowy"
+    ],
+    "model": {
+      "class": "StableDiffusionXLAdapter",
+      "device": "cuda",
+      "dtype": "torch.float32",
+      "num_train_timesteps": 1000,
+      "prediction_type": "epsilon",
+      "scheduler": "EulerDiscreteScheduler",
+      "pipeline": "StableDiffusionXLPipeline",
+      "vae_scale_factor": 8,
+      "latent_channels": 4,
+      "scaling_factor": 0.13025,
+      "resolution": 1024
+    },
+    "clip_model": "openai/clip-vit-large-patch14",
+    "reference_split": "val",
+    "reference_num_images": 500,
+    "cmmd_sigma": 10.0,
+    "cmmd_scale": 1000.0
+  },
+  "num_images": 900,
+  "cmmd": {
+    "cmmd": 1.1818468415234484,
+    "num_reference": 500,
+    "num_generated": 500
+  },
+  "clip_score": {
+    "overall": {
+      "clip_score": 21.24459457397461,
+      "clip_score_std": 2.4511852264404297,
+      "num_pairs": 900
+    },
+    "per_condition": {
+      "foggy": {
+        "clip_score": 23.404233932495117,
+        "clip_score_std": 2.2330434322357178,
+        "num_pairs": 100
+      },
+      "in_domain": {
+        "clip_score": 21.66954231262207,
+        "clip_score_std": 1.856798529624939,
+        "num_pairs": 500
+      },
+      "night-time": {
+        "clip_score": 19.388893127441406,
+        "clip_score_std": 2.230454444885254,
+        "num_pairs": 100
+      },
+      "rainy": {
+        "clip_score": 21.55819320678711,
+        "clip_score_std": 2.0465376377105713,
+        "num_pairs": 100
+      },
+      "snowy": {
+        "clip_score": 18.502294540405273,
+        "clip_score_std": 2.497134208679199,
+        "num_pairs": 100
+      }
+    },
+    "weather_mean": 20.713403701782227
+  }
+}

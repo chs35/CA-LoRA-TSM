@@ -102,6 +102,7 @@ def prepare_samples(
     *,
     axes: Sequence[str],
     num_samples: int | None = None,
+    latents: Sequence[torch.Tensor] | None = None,
 ) -> list[MeasurementSample]:
     """Encode images and prompts once, for reuse across every timestep.
 
@@ -111,6 +112,9 @@ def prepare_samples(
             and read as a single-slot list. See :mod:`calora.data`.
         axes: concept axes to prepare; every item must provide all of them, with
             the same number of augmentation slots for each.
+        latents: precomputed VAE latents, one ``[1,C,h,w]`` per item in item
+            order (:func:`calora.data.selfgen.selfgen_latents` reads them off
+            disk). The items' ``image`` is then not encoded again.
     """
     samples: list[MeasurementSample] = []
     for index, item in enumerate(items):
@@ -128,10 +132,15 @@ def prepare_samples(
                 "axis must supply the same non-zero number of c_Aug prompts."
             )
 
-        image = item["image"]
-        if image.ndim == 3:
-            image = image.unsqueeze(0)
-        latents = adapter.encode_images(image).detach().cpu()
+        if latents is not None:
+            if index >= len(latents):
+                raise ValueError(f"{len(latents)} precomputed latents for item {index}")
+            item_latents = latents[index].detach().cpu()
+        else:
+            image = item["image"]
+            if image.ndim == 3:
+                image = image.unsqueeze(0)
+            item_latents = adapter.encode_images(image).detach().cpu()
         cond = {k: v.detach().cpu() for k, v in adapter.encode_prompts([item["caption"]]).items()}
         cond_aug = {
             axis: [
@@ -143,7 +152,7 @@ def prepare_samples(
         samples.append(
             MeasurementSample(
                 index=index,
-                latents=latents,
+                latents=item_latents,
                 cond=cond,
                 cond_aug=cond_aug,
                 caption=item["caption"],

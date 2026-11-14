@@ -238,7 +238,9 @@ def main() -> None:
     out = Path(args.out) if args.out else cfg.run_dir / "diagnosis"
     out.mkdir(parents=True, exist_ok=True)
 
-    results = load_measurements(directory, granularity=cfg.select.granularity)
+    # Diagnosis also reads historical (real-image) runs, so the x0 source is not
+    # required here; mixing sources within one directory is still refused.
+    results = load_measurements(directory, granularity=cfg.select.granularity, require_source=None)
     if args.timesteps:
         missing = sorted(set(args.timesteps) - set(results))
         if missing:
