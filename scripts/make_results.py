@@ -3,6 +3,30 @@
     python scripts/make_results.py --refresh   # copy evidence from runs/ (+ Improving-CA-LoRA) into results/
     python scripts/make_results.py             # rebuild everything below from results/ only
 
+Defaults and the committed results. The two bare commands above are the earlier
+experiment's: ``--run`` / ``--run-c1`` default to ``sdxl_cityscapes`` / ``sdxl_c1`` (training
+on the full Cityscapes train split), and without ``--base-eval`` the table also needs the
+Improving-CA-LoRA 10K-step reference evals. Neither is in this repository. The committed
+``results/selfgen_fewshot10/`` is the reported run (its ``evals/*.json`` name the runs, its
+``summary.md`` has the base-control-only note) and corresponds to
+
+    python scripts/make_results.py --run sdxl_cityscapes_selfgen_fewshot10 \
+        --run-c1 sdxl_c1_selfgen_fewshot10 --base-eval <base-control eval.json>
+
+with ``--results-dir`` / ``--figures-dir`` at what are now their defaults. The base control
+is the ``control_base`` eval of run ``sdxl_cityscapes_fewshot10`` (the ``run`` field of
+``reference_10k/control_base.json``, the only file in that folder). Without ``--refresh``
+the same command rebuilds the tables and figures from the committed files alone (any
+readable path does for ``--base-eval``, e.g. that ``control_base.json``); with no options
+the build stops on the missing 10K reference files.
+
+Limits of ``--refresh``: the Jaccard source is ``runs/sdxl_cityscapes/diagnosis/diagnosis.json``
+whatever ``--run`` says, while the committed ``diagnosis_jaccard.json`` was extracted from
+``runs/sdxl_cityscapes_selfgen/diagnosis/diagnosis.json`` (its ``source`` field), so
+``--refresh`` does not reproduce that file and overwrites it. Run with the defaults and with
+the earlier runs on disk, ``--refresh`` replaces the committed ``evals/`` and
+``diagnosis_jaccard.json`` with the earlier experiment's.
+
 ``--refresh`` copies, verbatim, every reportable ``<arm>/eval.json`` to
 ``results/selfgen_fewshot10/evals/<arm>.json`` and the Improving-CA-LoRA 10K-step reference evals to
 ``results/selfgen_fewshot10/reference_10k/<arm>.json``, and extracts the Jaccard part of
@@ -15,7 +39,7 @@ The build step then writes, from ``results/selfgen_fewshot10/`` alone:
 * ``results/figures/jaccard_matrix.png`` — t × t Jaccard of the top-2 % style-CA head sets;
 * ``results/figures/tradeoff_scatter.png`` — CMMD vs weather CLIP-Score, same axes as
   Improving-CA-LoRA's trade-off figure;
-* ``MANIFEST.md`` — sha256 of every file written.
+* ``MANIFEST.md`` — sha256 of every file written (not committed to the repository).
 
 Weather CLIP SEM is the per-image sampling error of the mean of the four condition means,
 ``sqrt(Σ_c s_c² / n_c) / 4``, from the stds stored in eval.json. It is *not* a seed-to-seed

@@ -26,7 +26,7 @@ python scripts/generate_images.py --config $CFG --run-name no3 \
 python scripts/evaluate.py        --config $CFG --run-name no3                           # CMMD, CLIP-Score
 ```
 
-CA 측정은 Improving-CA-LoRA에서 한 번 하고 `scripts/ops/import_measurements.sh`로 가져온다. `scripts/ops/`에는 보고한 실험을 A100 한 대에서 실제로 돌린 스크립트가 있다. Cityscapes는 포함하지 않으며 [cityscapes-dataset.com](https://www.cityscapes-dataset.com/)에서 따로 받아야 한다.
+CA 측정은 Improving-CA-LoRA에서 한 번 하고 `scripts/ops/import_measurements.sh`로 가져온다. `scripts/ops/`에는 GPU 서버(A100 한 대)에서 실험을 돌린 스크립트가 있다. 기본값은 이 레포에 결과가 없는 이전 실험의 것이고, 보고한 실험은 `scripts/ops/run_selfgen_chain.sh`가 설정과 run 이름을 지정해 돌렸다. Cityscapes는 포함하지 않으며 [cityscapes-dataset.com](https://www.cityscapes-dataset.com/)에서 따로 받아야 한다.
 
 ## 폴더 구조
 

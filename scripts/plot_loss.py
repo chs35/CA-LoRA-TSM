@@ -6,6 +6,11 @@
 Completed experts are read from runs/<run>/experts/<expert>/train_summary.json
 (`history`, one entry per log_every=50 steps); an expert still training is read
 from the tail of runs/<run>/run.log (its last "Fostering <expert>" block).
+
+The default --runs (sdxl_cityscapes, sdxl_c1) are the run names of an earlier
+experiment (full-data training) whose results are not in this repository. The
+reported run's directories are sdxl_cityscapes_selfgen_fewshot10 and
+sdxl_c1_selfgen_fewshot10 (scripts/ops/run_selfgen_chain.sh); pass them with --runs.
 """
 from __future__ import annotations
 import argparse, json, re, sys

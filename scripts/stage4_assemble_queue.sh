@@ -8,8 +8,13 @@
 #   c2 = no3 with n4_i3 disabled (router retrained), c2n2 = no2 with n4_i3 disabled (hard, no training) — C2 controls (2026-09-19).
 # Skips a configuration whose bundle.safetensors exists. Runs scripts/router_stats.py on every bundle
 # (bundle_stats.json + gate_heatmap.png) and aborts if the router bias did not move.
-# Launch: nohup scripts/stage4_assemble_queue.sh no1 no2 c1 no3 > runs/sdxl_cityscapes/logs/assemble_queue.out 2>&1 &
+# Launch: nohup scripts/stage4_assemble_queue.sh no1 no2 c1 no3 > runs/sdxl_cityscapes/logs/assemble_queue.out 2>&1 &   # earlier run
 # PID via pgrep -f stage4_assemble_queue.sh (never $! on an && chain). Never run two GPU jobs at once.
+# The defaults below (CFG, RUN, RUN_C1) are those of an earlier experiment (full-data training) whose
+# results are not in this repository. The reported run called this script one configuration at a time
+# from scripts/ops/run_fewshot10.sh, with the values exported by scripts/ops/run_selfgen_chain.sh:
+#   CFG=configs/sdxl_cityscapes_selfgen_fewshot10.yaml RUN=sdxl_cityscapes_selfgen_fewshot10 \
+#   RUN_C1=sdxl_c1_selfgen_fewshot10 scripts/stage4_assemble_queue.sh no3
 set -u
 cd "$(dirname "$0")/.."
 source scripts/env.sh

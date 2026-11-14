@@ -10,6 +10,13 @@
 #      tensor-core gate of 2026-11-02 and the real-val CMMD reference export
 # Also drops the t=81 style selection where Hierarchical-CFG expects it.
 #
+# This is the script that ran the reported experiment (results/selfgen_fewshot10/). Step 4
+# depends on artifacts of earlier experiments that are not part of this repository:
+#   - the tensor-core gate runs/sdxl_cityscapes_fewshot10_gate/tensor_core_gate.json, written by
+#     scripts/ops/check_tensor_cores.py for the earlier 10-image campaign (GATE below);
+#   - the CMMD reference export runs/sdxl_cityscapes/reference of the full-data run, which
+#     scripts/ops/run_fewshot10.sh links into the new run directory.
+#
 #   nohup scripts/ops/run_selfgen_chain.sh > runs/selfgen_chain.out 2>&1 &
 # Resumable: every step is idempotent (import verifies, select rewrites the same files,
 # the campaign skips verified stages).

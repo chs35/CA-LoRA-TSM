@@ -26,7 +26,7 @@ python scripts/generate_images.py --config $CFG --run-name no3 \
 python scripts/evaluate.py        --config $CFG --run-name no3                           # CMMD, CLIP-Score
 ```
 
-The CA measurements are made once in Improving-CA-LoRA and imported with `scripts/ops/import_measurements.sh`. `scripts/ops/` holds the scripts that ran the reported experiments on a single A100. Cityscapes is not included and must be obtained from [cityscapes-dataset.com](https://www.cityscapes-dataset.com/).
+The CA measurements are made once in Improving-CA-LoRA and imported with `scripts/ops/import_measurements.sh`. `scripts/ops/` holds the scripts that ran the experiments on the GPU server (a single A100). Their defaults are those of earlier experiments whose results are not in this repository; the reported run was started by `scripts/ops/run_selfgen_chain.sh`, which sets the config and run names. Cityscapes is not included and must be obtained from [cityscapes-dataset.com](https://www.cityscapes-dataset.com/).
 
 ## Layout
 

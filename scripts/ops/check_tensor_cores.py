@@ -14,6 +14,13 @@ runs/<name>_gate/tensor_core_gate.json and exits 0 only if every check passes.
 
 Steps 2-4 only need experts and a bundle of the right shape, so they read the
 full-data run's, under a separate <name>_gate run directory.
+
+What this depends on. FULL_RUN (runs/sdxl_cityscapes: its n1 selection, experts and
+n1+n4 bundle) is the full-data run of an earlier experiment, and the default config
+and the gate's run name (sdxl_cityscapes_fewshot10_gate) are those of the earlier
+10-image campaign; neither run is part of this repository. The reported run did not
+run this gate again: scripts/ops/run_selfgen_chain.sh reused
+runs/sdxl_cityscapes_fewshot10_gate/tensor_core_gate.json.
 """
 
 from __future__ import annotations
@@ -53,6 +60,7 @@ TC_MARKERS = ("16816", "1688", "tensorop", "xmma", "hmma", "bf16", "tf32", "flas
               "cutlass_80", "sm80", "sm90")
 MATH_MARKERS = ("gemm", "conv", "fprop", "dgrad", "wgrad", "flash", "fmha", "attention", "xmma",
                 "cutlass", "implicit")
+# The full-data run of an earlier experiment; its directory is not part of this repository.
 FULL_RUN = REPO / "runs" / "sdxl_cityscapes"
 SIBLING_SUBSET = Path("/workspace/Improving-CA-LoRA/runs/sdxl_cityscapes_fewshot10/training_subset.json")
 PY = sys.executable

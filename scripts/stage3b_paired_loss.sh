@@ -6,6 +6,11 @@
 #   (c) C1 experts (selection fixed at t=81) on their interval  -> runs/$RUN_C1/experts/<e>/paired_loss.json
 # (a) vs (b) = does interval training help inside the interval; (a) vs (c) = does interval *selection* help.
 # Skips existing outputs. ~2.5 min per run (SDXL load + 2 x 96 forwards), 18 runs ≈ 45 min. GPU must be free.
+# The defaults below (CFG, RUN, RUN_C1) are those of an earlier experiment (full-data training) whose
+# results are not in this repository. The reported run called this script from scripts/ops/run_fewshot10.sh
+# with the values exported by scripts/ops/run_selfgen_chain.sh:
+#   CFG=configs/sdxl_cityscapes_selfgen_fewshot10.yaml RUN=sdxl_cityscapes_selfgen_fewshot10 \
+#   RUN_C1=sdxl_c1_selfgen_fewshot10 scripts/stage3b_paired_loss.sh
 set -u
 cd "$(dirname "$0")/.."
 source scripts/env.sh

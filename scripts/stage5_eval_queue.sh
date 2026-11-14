@@ -8,8 +8,15 @@
 # --skip-existing. After generation the manifest must list 900 images (6 for SMOKE) and, for a
 # bundle arm, gate_hook_calls > 0; evaluate.py then writes <run>/<arm>/eval.json.
 # The C1 run reuses the CMMD reference export of sdxl_cityscapes through a symlink.
-# Launch: nohup scripts/stage5_eval_queue.sh no1 no2 no3 c1 > runs/sdxl_cityscapes/logs/eval_queue.out 2>&1 &
+# Launch: nohup scripts/stage5_eval_queue.sh no1 no2 no3 c1 > runs/sdxl_cityscapes/logs/eval_queue.out 2>&1 &   # earlier run
 # PID via pgrep -f stage5_eval_queue.sh. Do not run alongside fostering/assembling.
+# The defaults below (CFG, RUN, RUN_C1) are those of an earlier experiment (full-data training) whose
+# results are not in this repository. The reported run called this script one configuration at a time
+# from scripts/ops/run_fewshot10.sh, with the values exported by scripts/ops/run_selfgen_chain.sh:
+#   CFG=configs/sdxl_cityscapes_selfgen_fewshot10.yaml RUN=sdxl_cityscapes_selfgen_fewshot10 \
+#   RUN_C1=sdxl_c1_selfgen_fewshot10 ONLY=generate scripts/stage5_eval_queue.sh no3   # then ONLY=evaluate
+# In that run runs/$RUN/reference was itself a link made by run_fewshot10.sh to the earlier
+# experiment's val export, runs/sdxl_cityscapes/reference (not part of this repository).
 set -u
 cd "$(dirname "$0")/.."
 source scripts/env.sh
